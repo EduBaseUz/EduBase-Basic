@@ -1,0 +1,33 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to droplet over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/EduBase-Basic
+            git pull origin main
+
+            # Backend
+            cd /opt/EduBase-Basic/backend
+            go build -o edubase-api ./cmd/api
+            sudo systemctl restart edubase-api
+
+            # Frontend
+            cd /opt/EduBase-Basic/frontend
+            npm install
+            npm run build
+            sudo systemctl restart edubase-web
+
+            echo "Deploy tugadi"
