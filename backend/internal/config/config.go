@@ -18,6 +18,7 @@ type Config struct {
 	AccessTTL      time.Duration
 	RefreshTTL     time.Duration
 	FrontendOrigin string
+	CookieDomain   string
 }
 
 // Load reads configuration from the environment. A local .env file is loaded if present.
@@ -34,6 +35,7 @@ func Load() *Config {
 		AccessTTL:      getDuration("ACCESS_TTL", 15*time.Minute),
 		RefreshTTL:     getDuration("REFRESH_TTL", 168*time.Hour),
 		FrontendOrigin: getEnv("FRONTEND_ORIGIN", "http://localhost:3000"),
+		CookieDomain:   getEnv("COOKIE_DOMAIN", ""),
 	}
 
 	if cfg.AccessSecret == "" || cfg.RefreshSecret == "" {

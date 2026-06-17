@@ -120,6 +120,7 @@ func (h *Handlers) setCookie(w http.ResponseWriter, name, value string, ttl time
 		Name:     name,
 		Value:    value,
 		Path:     "/",
+		Domain:   h.cfg.CookieDomain, // bo'sh bo'lsa joriy host; prod'da ".edubase.uz"
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
