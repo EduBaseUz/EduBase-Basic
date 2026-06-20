@@ -88,6 +88,19 @@ func (r *groupRepo) ListByMentor(ctx context.Context, mentorID primitive.ObjectI
 	return out, total, nil
 }
 
+func (r *groupRepo) ListByCourse(ctx context.Context, courseID primitive.ObjectID) ([]models.Group, error) {
+	cur, err := r.c.Find(ctx, bson.M{"courseId": courseID})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	out := []models.Group{}
+	if err := cur.All(ctx, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (r *groupRepo) ListByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.Group, error) {
 	if len(ids) == 0 {
 		return []models.Group{}, nil

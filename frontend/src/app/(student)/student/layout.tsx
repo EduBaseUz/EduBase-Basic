@@ -15,7 +15,7 @@ const items: NavItem[] = [
   { href: "/student/groups", label: "Guruhlarim", icon: Boxes },
   { href: "/student/academic", label: "O'zlashtirish", icon: GraduationCap },
   { href: "/student/rating", label: "Reyting", icon: Trophy },
-  { href: "/student/profile", label: "Profil", icon: User },
+  { href: "/student/profile", label: "Profil", icon: User, footer: true },
 ];
 
 export default function StudentLayout({

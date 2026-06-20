@@ -76,6 +76,7 @@ func (r *courseRepo) Update(ctx context.Context, c *models.Course) error {
 		"lessonsPerMonth":      c.LessonsPerMonth,
 		"mentorRatePerStudent": c.MentorRatePerStudent,
 		"mentorRateHistory":    c.MentorRateHistory,
+		"priceEntries":         c.PriceEntries,
 		"status":               c.Status,
 		"updatedAt":            c.UpdatedAt,
 	}})

@@ -59,6 +59,18 @@ func (r *payoutRepo) GetByKey(ctx context.Context, mentorID primitive.ObjectID, 
 	return &p, nil
 }
 
+func (r *payoutRepo) GetByCourseKey(ctx context.Context, mentorID, courseID primitive.ObjectID, period string) (*models.Payout, error) {
+	var p models.Payout
+	err := r.c.FindOne(ctx, bson.M{"mentorId": mentorID, "courseId": courseID, "period": period}).Decode(&p)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (r *payoutRepo) List(ctx context.Context, period string, pg repositories.Page) ([]models.Payout, int64, error) {
 	filter := bson.M{}
 	if period != "" {

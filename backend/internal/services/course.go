@@ -27,13 +27,23 @@ type MonthlyPriceInput struct {
 }
 
 // CreateCourseInput is the payload for creating a course.
+// Faqat nom va tasnif majburiy; raqamli sozlamalar keyin (settings) kiritiladi.
 type CreateCourseInput struct {
 	Title                string              `json:"title" validate:"required,min=2"`
 	Description          string              `json:"description"`
-	DurationMonths       int                 `json:"durationMonths" validate:"required,min=1"`
-	MonthlyPrices        []MonthlyPriceInput `json:"monthlyPrices" validate:"required,min=1,dive"`
-	LessonsPerMonth      int                 `json:"lessonsPerMonth" validate:"required,min=1"`
+	DurationMonths       int                 `json:"durationMonths" validate:"min=0"`
+	MonthlyPrices        []MonthlyPriceInput `json:"monthlyPrices" validate:"omitempty,dive"`
+	LessonsPerMonth      int                 `json:"lessonsPerMonth" validate:"min=0"`
 	MentorRatePerStudent int64               `json:"mentorRatePerStudent" validate:"min=0"`
+}
+
+// PriceEntryInput is one date-range tuition price (Oylik narxlar) together with
+// its per-student mentor payment.
+type PriceEntryInput struct {
+	StartDate  string `json:"startDate" validate:"required"`
+	EndDate    string `json:"endDate" validate:"required"`
+	Price      int64  `json:"price" validate:"min=0"`
+	MentorRate int64  `json:"mentorRate" validate:"min=0"`
 }
 
 // UpdateCourseInput is the payload for updating a course.
@@ -44,6 +54,7 @@ type UpdateCourseInput struct {
 	MonthlyPrices        []MonthlyPriceInput `json:"monthlyPrices"`
 	LessonsPerMonth      *int                `json:"lessonsPerMonth"`
 	MentorRatePerStudent *int64              `json:"mentorRatePerStudent"`
+	PriceEntries         *[]PriceEntryInput  `json:"priceEntries"`
 	Status               *string             `json:"status" validate:"omitempty,oneof=active archived"`
 }
 
@@ -117,6 +128,24 @@ func (s *CourseService) Update(ctx context.Context, id primitive.ObjectID, in Up
 	}
 	if in.Status != nil {
 		c.Status = models.CourseStatus(*in.Status)
+	}
+	if in.PriceEntries != nil {
+		entries := make([]models.PriceEntry, 0, len(*in.PriceEntries))
+		for _, e := range *in.PriceEntries {
+			start, err := parseDate(e.StartDate)
+			if err != nil {
+				return nil, BadRequest("Yaroqsiz boshlanish sanasi")
+			}
+			end, err := parseDate(e.EndDate)
+			if err != nil {
+				return nil, BadRequest("Yaroqsiz tugash sanasi")
+			}
+			if end.Before(start) {
+				return nil, BadRequest("Tugash sanasi boshlanishdan oldin bo'lmasligi kerak")
+			}
+			entries = append(entries, models.PriceEntry{StartDate: start, EndDate: end, Price: e.Price, MentorRate: e.MentorRate})
+		}
+		c.PriceEntries = entries
 	}
 	if err := s.courses.Update(ctx, c); err != nil {
 		return nil, err

@@ -14,11 +14,12 @@ import (
 
 // UserService manages user accounts (admin-only operations).
 type UserService struct {
-	users repositories.UserRepository
+	users          repositories.UserRepository
+	defaultAvatars repositories.DefaultAvatarRepository
 }
 
-func NewUserService(users repositories.UserRepository) *UserService {
-	return &UserService{users: users}
+func NewUserService(users repositories.UserRepository, defaultAvatars repositories.DefaultAvatarRepository) *UserService {
+	return &UserService{users: users, defaultAvatars: defaultAvatars}
 }
 
 // CreateUserInput is the payload for creating a user.
@@ -27,9 +28,14 @@ type CreateUserInput struct {
 	LastName       string  `json:"lastName" validate:"required,min=1"`
 	FirstName      string  `json:"firstName" validate:"required,min=1"`
 	MiddleName     string  `json:"middleName"`
+	Gender          string   `json:"gender" validate:"required,oneof=male female"`
 	Phone           string   `json:"phone" validate:"required,min=5"`
 	Address         string   `json:"address"`
 	NoteCourseID    *string  `json:"noteCourseId"`
+	BirthDate       string   `json:"birthDate"`
+	DocumentType    string   `json:"documentType" validate:"omitempty,oneof=passport birth_certificate"`
+	DocumentSeries  string   `json:"documentSeries"`
+	DocumentNumber  string   `json:"documentNumber"`
 	Specialization  string   `json:"specialization"`
 	Specializations []string `json:"specializations"`
 }
@@ -40,10 +46,15 @@ type UpdateUserInput struct {
 	FirstName       *string   `json:"firstName"`
 	MiddleName      *string   `json:"middleName"`
 	FullName        *string   `json:"fullName"`
+	Gender          *string   `json:"gender" validate:"omitempty,oneof=male female"`
 	Phone           *string   `json:"phone"`
 	Address         *string   `json:"address"`
 	Status          *string   `json:"status" validate:"omitempty,oneof=active inactive"`
 	NoteCourseID    *string   `json:"noteCourseId"`
+	BirthDate       *string   `json:"birthDate"`
+	DocumentType    *string   `json:"documentType" validate:"omitempty,oneof=passport birth_certificate"`
+	DocumentSeries  *string   `json:"documentSeries"`
+	DocumentNumber  *string   `json:"documentNumber"`
 	Specialization  *string   `json:"specialization"`
 	Specializations *[]string `json:"specializations"`
 }
@@ -101,18 +112,25 @@ func (s *UserService) Create(ctx context.Context, in CreateUserInput) (*models.U
 		FirstName:          strings.TrimSpace(in.FirstName),
 		MiddleName:         strings.TrimSpace(in.MiddleName),
 		FullName:           composeFullName(in.LastName, in.FirstName, in.MiddleName),
+		Gender:             in.Gender,
 		Phone:              phone,
 		Address:            strings.TrimSpace(in.Address),
 		PasswordHash:       hashed,
 		MustChangePassword: true,
 		Status:             models.UserActive,
 	}
-	if role == models.RoleStudent && in.NoteCourseID != nil && *in.NoteCourseID != "" {
-		id, err := primitive.ObjectIDFromHex(*in.NoteCourseID)
-		if err != nil {
-			return nil, BadRequest("Yaroqsiz kurs identifikatori")
+	if role == models.RoleStudent {
+		if in.NoteCourseID != nil && *in.NoteCourseID != "" {
+			id, err := primitive.ObjectIDFromHex(*in.NoteCourseID)
+			if err != nil {
+				return nil, BadRequest("Yaroqsiz kurs identifikatori")
+			}
+			u.NoteCourseID = &id
 		}
-		u.NoteCourseID = &id
+		u.BirthDate = strings.TrimSpace(in.BirthDate)
+		u.DocumentType = in.DocumentType
+		u.DocumentSeries = strings.TrimSpace(in.DocumentSeries)
+		u.DocumentNumber = strings.TrimSpace(in.DocumentNumber)
 	}
 	if role == models.RoleMentor {
 		u.Specializations = cleanStrings(in.Specializations)
@@ -120,6 +138,14 @@ func (s *UserService) Create(ctx context.Context, in CreateUserInput) (*models.U
 			u.Specializations = []string{strings.TrimSpace(in.Specialization)}
 		}
 		u.Specialization = strings.Join(u.Specializations, ", ")
+	}
+
+	// Rasm yuklanmagan bo'lsa — kutubxonadan jinsiga mos tasodifiy avatar
+	// biriktiramiz (erkak->erkak, ayol->ayol; "both" har ikkalasiga ham mos).
+	// Faqat URL saqlanadi (Key bo'sh): bu umumiy obyekt, foydalanuvchi avatarini
+	// keyin almashtirsa ham S3 dagi default rasm o'chirilmasligi kerak.
+	if da, err := s.defaultAvatars.RandomForGender(ctx, u.Gender); err == nil && da != nil {
+		u.AvatarURL = da.URL
 	}
 
 	if err := s.users.Create(ctx, u); err != nil {
@@ -181,6 +207,9 @@ func (s *UserService) Update(ctx context.Context, id primitive.ObjectID, in Upda
 		}
 		u.Phone = phone
 	}
+	if in.Gender != nil {
+		u.Gender = *in.Gender
+	}
 	if in.Address != nil {
 		u.Address = strings.TrimSpace(*in.Address)
 	}
@@ -196,15 +225,29 @@ func (s *UserService) Update(ctx context.Context, id primitive.ObjectID, in Upda
 			u.Specializations = []string{u.Specialization}
 		}
 	}
-	if in.NoteCourseID != nil && u.Role == models.RoleStudent {
-		if *in.NoteCourseID == "" {
-			u.NoteCourseID = nil
-		} else {
-			cid, err := primitive.ObjectIDFromHex(*in.NoteCourseID)
-			if err != nil {
-				return nil, BadRequest("Yaroqsiz kurs identifikatori")
+	if u.Role == models.RoleStudent {
+		if in.NoteCourseID != nil {
+			if *in.NoteCourseID == "" {
+				u.NoteCourseID = nil
+			} else {
+				cid, err := primitive.ObjectIDFromHex(*in.NoteCourseID)
+				if err != nil {
+					return nil, BadRequest("Yaroqsiz kurs identifikatori")
+				}
+				u.NoteCourseID = &cid
 			}
-			u.NoteCourseID = &cid
+		}
+		if in.BirthDate != nil {
+			u.BirthDate = strings.TrimSpace(*in.BirthDate)
+		}
+		if in.DocumentType != nil {
+			u.DocumentType = *in.DocumentType
+		}
+		if in.DocumentSeries != nil {
+			u.DocumentSeries = strings.TrimSpace(*in.DocumentSeries)
+		}
+		if in.DocumentNumber != nil {
+			u.DocumentNumber = strings.TrimSpace(*in.DocumentNumber)
 		}
 	}
 	if err := s.users.Update(ctx, u); err != nil {
@@ -248,6 +291,22 @@ func (s *UserService) UpdateOwnProfile(ctx context.Context, id primitive.ObjectI
 	in.Specialization = nil
 	in.Specializations = nil
 	return s.Update(ctx, id, in)
+}
+
+// SetAvatar updates a user's avatar URL/key and returns the updated user along
+// with the previous object key (so the caller can delete the old file).
+func (s *UserService) SetAvatar(ctx context.Context, id primitive.ObjectID, url, key string) (*models.User, string, error) {
+	u, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+	oldKey := u.AvatarKey
+	u.AvatarURL = url
+	u.AvatarKey = key
+	if err := s.users.Update(ctx, u); err != nil {
+		return nil, "", err
+	}
+	return u, oldKey, nil
 }
 
 // AssignParent links a student to a parent (a student has at most one parent).

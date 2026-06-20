@@ -247,6 +247,7 @@ func (s *GroupService) AddStudent(ctx context.Context, groupID, studentID primit
 		existing.Status = models.EnrollmentActive
 		existing.JoinedAt = now
 		existing.LeftAt = nil
+		existing.Outcome = models.OutcomeNone
 		if err := s.enrollments.Update(ctx, existing); err != nil {
 			return nil, err
 		}
@@ -265,8 +266,9 @@ func (s *GroupService) AddStudent(ctx context.Context, groupID, studentID primit
 	return e, nil
 }
 
-// RemoveStudent marks an enrollment as left.
-func (s *GroupService) RemoveStudent(ctx context.Context, groupID, studentID primitive.ObjectID) error {
+// closeEnrollment marks a student's active enrollment in a group as left,
+// recording the outcome (why they left) for history.
+func (s *GroupService) closeEnrollment(ctx context.Context, groupID, studentID primitive.ObjectID, outcome models.EnrollmentOutcome) error {
 	e, err := s.enrollments.Get(ctx, studentID, groupID)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNotFound) {
@@ -277,12 +279,78 @@ func (s *GroupService) RemoveStudent(ctx context.Context, groupID, studentID pri
 	now := time.Now()
 	e.Status = models.EnrollmentLeft
 	e.LeftAt = &now
+	e.Outcome = outcome
 	return s.enrollments.Update(ctx, e)
 }
 
-// ListStudents returns active enrollments for a group.
+// RemoveStudent removes a student from a group (outcome: dropped).
+func (s *GroupService) RemoveStudent(ctx context.Context, groupID, studentID primitive.ObjectID) error {
+	return s.closeEnrollment(ctx, groupID, studentID, models.OutcomeDropped)
+}
+
+// ListEnrollments returns all enrollments (active + history) for a group.
 func (s *GroupService) ListEnrollments(ctx context.Context, groupID primitive.ObjectID) ([]models.Enrollment, error) {
 	return s.enrollments.ListByGroup(ctx, groupID)
+}
+
+// moveWithOutcome closes the source enrollment with the given outcome, then
+// enrolls the student into the target group. On failure the source is restored.
+func (s *GroupService) moveWithOutcome(ctx context.Context, fromGroupID, toGroupID, studentID primitive.ObjectID, outcome models.EnrollmentOutcome) error {
+	if toGroupID == fromGroupID {
+		return BadRequest("O'quvchi allaqachon shu guruhda")
+	}
+	if _, err := s.Get(ctx, toGroupID); err != nil {
+		return err
+	}
+	// Close source first so schedule-clash checks ignore it.
+	if err := s.closeEnrollment(ctx, fromGroupID, studentID, outcome); err != nil {
+		return err
+	}
+	if _, err := s.AddStudent(ctx, toGroupID, studentID); err != nil {
+		_, _ = s.AddStudent(ctx, fromGroupID, studentID) // restore
+		return err
+	}
+	return nil
+}
+
+// MoveStudent moves a student to another group (plain transfer).
+func (s *GroupService) MoveStudent(ctx context.Context, fromGroupID, studentID primitive.ObjectID, toGroupHex string) error {
+	toGroupID, err := primitive.ObjectIDFromHex(toGroupHex)
+	if err != nil {
+		return BadRequest("Yaroqsiz guruh identifikatori")
+	}
+	return s.moveWithOutcome(ctx, fromGroupID, toGroupID, studentID, models.OutcomeTransferred)
+}
+
+// PromotionItem is one student's exam decision: pass/fail plus the target group.
+type PromotionItem struct {
+	StudentID     string
+	Outcome       string // "passed" | "repeat"
+	TargetGroupID string
+}
+
+// PromoteStudents applies a batch of exam decisions: each listed student is moved
+// from this group to a target group, the source enrollment closed with the
+// chosen outcome. Students who stay are simply not included.
+func (s *GroupService) PromoteStudents(ctx context.Context, fromGroupID primitive.ObjectID, items []PromotionItem) error {
+	for _, it := range items {
+		outcome := models.EnrollmentOutcome(it.Outcome)
+		if outcome != models.OutcomePassed && outcome != models.OutcomeRepeat {
+			return BadRequest("Yaroqsiz natija turi")
+		}
+		sid, err := primitive.ObjectIDFromHex(it.StudentID)
+		if err != nil {
+			return BadRequest("Yaroqsiz o'quvchi identifikatori")
+		}
+		toID, err := primitive.ObjectIDFromHex(it.TargetGroupID)
+		if err != nil {
+			return BadRequest("Yaroqsiz maqsadli guruh identifikatori")
+		}
+		if err := s.moveWithOutcome(ctx, fromGroupID, toID, sid, outcome); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *GroupService) validateMentors(ctx context.Context, ids []primitive.ObjectID) error {

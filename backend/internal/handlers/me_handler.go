@@ -58,8 +58,6 @@ func (h *Handlers) MyGrades(w http.ResponseWriter, r *http.Request) {
 // MyPayouts returns the mentor's salary history (auto-synced for the current month).
 func (h *Handlers) MyPayouts(w http.ResponseWriter, r *http.Request) {
 	u := middleware.MustUser(r.Context())
-	// Keep the current month's payout fresh before returning history.
-	_, _ = h.svc.Payout.SyncPayout(r.Context(), u.ID, currentPeriod())
 	payouts, err := h.svc.Payout.ListByMentor(r.Context(), u.ID)
 	if err != nil {
 		fail(w, err)

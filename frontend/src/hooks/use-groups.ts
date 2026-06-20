@@ -82,3 +82,42 @@ export function useRemoveStudent() {
     onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["group", v.id] }),
   });
 }
+
+export function useMoveStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      studentId,
+      toGroupId,
+    }: {
+      id: string;
+      studentId: string;
+      toGroupId: string;
+    }) => api.post(`/groups/${id}/students/${studentId}/move`, { toGroupId }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["group", v.id] });
+      qc.invalidateQueries({ queryKey: ["group", v.toGroupId] });
+      qc.invalidateQueries({ queryKey: ["groups"] });
+    },
+  });
+}
+
+export interface PromotionItem {
+  studentId: string;
+  outcome: "passed" | "repeat";
+  targetGroupId: string;
+}
+
+export function usePromoteStudents() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, items }: { id: string; items: PromotionItem[] }) =>
+      api.post(`/groups/${id}/promote`, { items }),
+    onSuccess: () => {
+      // Bir nechta guruh o'zgaradi — barchasini yangilaymiz.
+      qc.invalidateQueries({ queryKey: ["group"] });
+      qc.invalidateQueries({ queryKey: ["groups"] });
+    },
+  });
+}

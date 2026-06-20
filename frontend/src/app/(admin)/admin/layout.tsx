@@ -26,8 +26,8 @@ const items: NavItem[] = [
   { href: "/admin/courses", label: "Mutaxassisliklar", icon: BookOpen },
   { href: "/admin/groups", label: "Guruhlar", icon: Boxes },
   { href: "/admin/finance", label: "Moliya", icon: Wallet },
-  { href: "/admin/settings", label: "Sozlamalar", icon: Settings },
-  { href: "/admin/profile", label: "Profil", icon: User },
+  { href: "/admin/settings", label: "Sozlamalar", icon: Settings, footer: true },
+  { href: "/admin/profile", label: "Profil", icon: User, footer: true },
 ];
 
 export default function AdminLayout({

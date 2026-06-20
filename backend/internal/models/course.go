@@ -18,6 +18,16 @@ type MentorRate struct {
 	EffectiveFrom time.Time `bson:"effectiveFrom" json:"effectiveFrom"`
 }
 
+// PriceEntry is a tuition price for a date range (Oylik narxlar). Each entry
+// also carries its own per-student mentor payment (1 kishilik to'lov), so the
+// rate can change month to month.
+type PriceEntry struct {
+	StartDate  time.Time `bson:"startDate" json:"startDate"`
+	EndDate    time.Time `bson:"endDate" json:"endDate"`
+	Price      int64     `bson:"price" json:"price"`
+	MentorRate int64     `bson:"mentorRate" json:"mentorRate"` // 1 kishilik to'lov
+}
+
 // CourseStatus enumerates course states.
 type CourseStatus string
 
@@ -36,6 +46,7 @@ type Course struct {
 	LessonsPerMonth     int                `bson:"lessonsPerMonth" json:"lessonsPerMonth"`
 	MentorRatePerStudent int64             `bson:"mentorRatePerStudent" json:"mentorRatePerStudent"`
 	MentorRateHistory   []MentorRate       `bson:"mentorRateHistory" json:"mentorRateHistory"`
+	PriceEntries        []PriceEntry       `bson:"priceEntries,omitempty" json:"priceEntries,omitempty"`
 	Status              CourseStatus       `bson:"status" json:"status"`
 	CreatedAt           time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt           time.Time          `bson:"updatedAt" json:"updatedAt"`
@@ -56,4 +67,16 @@ func (c *Course) PriceForMonth(monthIndex int) int64 {
 		}
 	}
 	return price
+}
+
+// PriceEntryForDate returns the price entry whose [StartDate, EndDate] range
+// contains the given date, or nil when none matches.
+func (c *Course) PriceEntryForDate(date time.Time) *PriceEntry {
+	for i := range c.PriceEntries {
+		e := &c.PriceEntries[i]
+		if !date.Before(e.StartDate) && !date.After(e.EndDate) {
+			return e
+		}
+	}
+	return nil
 }

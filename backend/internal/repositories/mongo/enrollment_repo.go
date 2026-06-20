@@ -65,6 +65,7 @@ func (r *enrollmentRepo) Update(ctx context.Context, e *models.Enrollment) error
 		"joinedAt":  e.JoinedAt,
 		"leftAt":    e.LeftAt,
 		"status":    e.Status,
+		"outcome":   e.Outcome,
 		"updatedAt": e.UpdatedAt,
 	}})
 	return err

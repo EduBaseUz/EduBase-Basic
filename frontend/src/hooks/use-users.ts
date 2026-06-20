@@ -92,3 +92,33 @@ export function useUpdateProfile() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
   });
 }
+
+// useUploadMyAvatar uploads the current user's own avatar (profile page).
+export function useUploadMyAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const fd = new FormData();
+      fd.append("avatar", file);
+      return api.upload<User>("/me/avatar", fd);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
+  });
+}
+
+// useUploadUserAvatar lets an admin set a specific user's avatar.
+export function useUploadUserAvatar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => {
+      const fd = new FormData();
+      fd.append("avatar", file);
+      return api.upload<User>(`/users/${id}/avatar`, fd);
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["user", v.id] });
+      qc.invalidateQueries({ queryKey: ["user-detail", v.id] });
+    },
+  });
+}

@@ -25,6 +25,7 @@ import {
   useAssignParent,
   useSetChildren,
 } from "@/hooks/use-users";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { ApiError } from "@/lib/api";
 import { formatPhoneDisplay } from "@/lib/utils";
 import { roleMeta, type ManagedRole } from "@/components/shared/users/role-config";
@@ -33,6 +34,8 @@ import type { User } from "@/types";
 export function UserList({ role }: { role: ManagedRole }) {
   const meta = roleMeta[role];
   const Icon = meta.icon;
+  // "mentor" -> "Mentor", "talaba" -> "Talaba", "ota-ona" -> "Ota-ona"
+  const roleTitle = meta.singular.charAt(0).toUpperCase() + meta.singular.slice(1);
   const { data, isLoading } = useUsers({ role });
   const deleteUser = useDeleteUser();
   const { toast } = useToast();
@@ -62,7 +65,24 @@ export function UserList({ role }: { role: ManagedRole }) {
       header: "T/R",
       cell: ({ row }) => <span className="text-muted-foreground">{row.index + 1}</span>,
     },
-    { accessorKey: "fullName", header: "F.I.O." },
+    {
+      accessorKey: "fullName",
+      header: roleTitle,
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <div className="flex items-center gap-3">
+            <UserAvatar user={u} />
+            <div className="min-w-0">
+              <p className="truncate font-medium text-foreground">
+                {u.fullName}
+              </p>
+              <p className="text-xs text-muted-foreground">{roleTitle}</p>
+            </div>
+          </div>
+        );
+      },
+    },
     {
       id: "phone",
       header: "Telefon",

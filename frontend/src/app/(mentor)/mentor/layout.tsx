@@ -15,7 +15,7 @@ const items: NavItem[] = [
   { href: "/mentor/groups", label: "Guruhlarim", icon: Boxes },
   { href: "/mentor/journal", label: "Jurnal", icon: ClipboardList },
   { href: "/mentor/finance", label: "Maoshim", icon: Wallet },
-  { href: "/mentor/profile", label: "Profil", icon: User },
+  { href: "/mentor/profile", label: "Profil", icon: User, footer: true },
 ];
 
 export default function MentorLayout({

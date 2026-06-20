@@ -1,57 +1,65 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { LogOut, Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { useLogout } from "@/hooks/use-auth";
-import { roleLabels } from "@/lib/auth";
+import { UserMenu } from "@/components/layout/user-menu";
+import type { NavItem } from "@/components/layout/sidebar";
 import type { User } from "@/types";
+
+/** Pick the deepest nav label whose href matches the current path. */
+function currentTitle(items: NavItem[], pathname: string): string {
+  let best = "";
+  let bestLen = -1;
+  const consider = (href?: string, label?: string) => {
+    if (!href || !label) return;
+    const matches = pathname === href || pathname.startsWith(href + "/");
+    if (matches && href.length > bestLen) {
+      bestLen = href.length;
+      best = label;
+    }
+  };
+  for (const it of items) {
+    consider(it.href, it.label);
+    it.children?.forEach((c) => consider(c.href, c.label));
+  }
+  return best;
+}
 
 export function Navbar({
   user,
+  items,
   onToggleSidebar,
 }: {
   user: User;
+  items: NavItem[];
   onToggleSidebar: () => void;
 }) {
-  const router = useRouter();
-  const logout = useLogout();
-
-  const onLogout = async () => {
-    await logout.mutateAsync();
-    router.push("/login");
-    router.refresh();
-  };
+  const pathname = usePathname();
+  const title = currentTitle(items, pathname);
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-4 md:px-6">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onToggleSidebar}
-        aria-label="Menyuni ochish/yopish"
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
-      <div className="ml-auto flex items-center gap-3">
-        <div className="hidden text-right sm:block">
-          <p className="text-sm font-medium leading-tight">{user.fullName}</p>
-          <p className="text-xs text-muted-foreground">
-            {roleLabels[user.role]}
-          </p>
-        </div>
-        <ThemeToggle />
+    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background px-3 md:px-5">
+      <div className="flex min-w-0 items-center gap-1">
         <Button
-          variant="outline"
-          size="sm"
-          onClick={onLogout}
-          disabled={logout.isPending}
+          variant="ghost"
+          size="icon"
+          onClick={onToggleSidebar}
+          aria-label="Menyuni ochish/yopish"
         >
-          <LogOut className="h-4 w-4" />
-          <span className="hidden sm:inline">Chiqish</span>
+          <PanelLeft className="h-5 w-5" />
         </Button>
+        {title && (
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="select-none text-muted-foreground/40">/</span>
+            <span className="truncate text-sm font-semibold tracking-tight">
+              {title}
+            </span>
+          </div>
+        )}
       </div>
+
+      <UserMenu user={user} />
     </header>
   );
 }

@@ -18,9 +18,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { PhoneInput } from "@/components/shared/phone-input";
 import { PageHeader } from "@/components/shared/page-header";
+import { AvatarUploader } from "@/components/shared/avatar-uploader";
 import { useToast } from "@/components/ui/toast";
 import { useMe } from "@/hooks/use-auth";
-import { useUpdateProfile } from "@/hooks/use-users";
+import { useUpdateProfile, useUploadMyAvatar } from "@/hooks/use-users";
 import { roleLabels } from "@/lib/auth";
 import { onlyDigits } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
@@ -48,7 +49,21 @@ export function ProfileView() {
   const router = useRouter();
   const { data: user } = useMe();
   const update = useUpdateProfile();
+  const uploadAvatar = useUploadMyAvatar();
   const { toast } = useToast();
+
+  const onAvatarSelected = async (file: File) => {
+    try {
+      await uploadAvatar.mutateAsync(file);
+      toast({ title: "Rasm yangilandi", variant: "success" });
+    } catch (err) {
+      toast({
+        title: "Xatolik",
+        description: err instanceof ApiError ? err.message : "Xatolik",
+        variant: "error",
+      });
+    }
+  };
 
   const {
     register,
@@ -130,6 +145,17 @@ export function ProfileView() {
             <CardDescription>Roli: {roleLabels[user.role]}</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-6 border-b pb-6">
+              <AvatarUploader
+                currentUrl={user.avatarUrl}
+                fullName={user.fullName}
+                uploading={uploadAvatar.isPending}
+                onFileSelected={onAvatarSelected}
+                onError={(message) =>
+                  toast({ title: "Xatolik", description: message, variant: "error" })
+                }
+              />
+            </div>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">

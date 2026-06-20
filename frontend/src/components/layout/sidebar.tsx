@@ -16,6 +16,8 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   children?: NavChild[];
+  /** Pinned to the bottom of the sidebar (e.g. Profile, Settings). */
+  footer?: boolean;
 }
 
 interface SidebarProps {
@@ -24,8 +26,35 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+/** A route is active if it matches exactly or is a parent of the current path. */
+function isActive(href: string, pathname: string): boolean {
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
 export function Sidebar({ items, open, onClose }: SidebarProps) {
   const pathname = usePathname();
+
+  const mainItems = items.filter((i) => !i.footer);
+  const footerItems = items.filter((i) => i.footer);
+
+  const renderItem = (item: NavItem) =>
+    item.children ? (
+      <SidebarGroup
+        key={item.label}
+        item={item}
+        pathname={pathname}
+        onNavigate={onClose}
+      />
+    ) : (
+      <SidebarLink
+        key={item.href}
+        href={item.href!}
+        label={item.label}
+        icon={item.icon}
+        active={isActive(item.href!, pathname)}
+        onNavigate={onClose}
+      />
+    );
 
   return (
     <>
@@ -47,30 +76,19 @@ export function Sidebar({ items, open, onClose }: SidebarProps) {
         )}
       >
         <div className="flex h-14 shrink-0 items-center gap-2 border-b px-5">
-          <GraduationCap className="h-6 w-6" />
+          <GraduationCap className="h-6 w-6 text-primary" />
           <span className="text-lg font-semibold tracking-tight">EduBase</span>
         </div>
+
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {items.map((item) =>
-            item.children ? (
-              <SidebarGroup
-                key={item.label}
-                item={item}
-                pathname={pathname}
-                onNavigate={onClose}
-              />
-            ) : (
-              <SidebarLink
-                key={item.href}
-                href={item.href!}
-                label={item.label}
-                icon={item.icon}
-                active={pathname === item.href}
-                onNavigate={onClose}
-              />
-            ),
-          )}
+          {mainItems.map(renderItem)}
         </nav>
+
+        {footerItems.length > 0 && (
+          <div className="space-y-1 border-t p-3">
+            {footerItems.map(renderItem)}
+          </div>
+        )}
       </aside>
     </>
   );
@@ -97,13 +115,18 @@ function SidebarLink({
         if (window.innerWidth < 768) onNavigate();
       }}
       className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
         active
-          ? "bg-secondary text-secondary-foreground"
+          ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
       )}
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      <Icon
+        className={cn(
+          "h-4 w-4 shrink-0 transition-colors",
+          active ? "text-primary" : "text-muted-foreground group-hover:text-accent-foreground",
+        )}
+      />
       {label}
     </Link>
   );
@@ -119,7 +142,7 @@ function SidebarGroup({
   onNavigate: () => void;
 }) {
   const Icon = item.icon;
-  const childActive = item.children!.some((c) => pathname.startsWith(c.href));
+  const childActive = item.children!.some((c) => isActive(c.href, pathname));
   const [open, setOpen] = React.useState(childActive);
 
   React.useEffect(() => {
@@ -138,19 +161,21 @@ function SidebarGroup({
             : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
         )}
       >
-        <Icon className="h-4 w-4 shrink-0" />
+        <Icon
+          className={cn(
+            "h-4 w-4 shrink-0",
+            childActive ? "text-primary" : "text-muted-foreground",
+          )}
+        />
         <span className="flex-1 text-left">{item.label}</span>
         <ChevronDown
-          className={cn(
-            "h-4 w-4 transition-transform",
-            open && "rotate-180",
-          )}
+          className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
         />
       </button>
       {open && (
         <div className="mt-1 space-y-1 pl-4">
           {item.children!.map((c) => {
-            const active = pathname.startsWith(c.href);
+            const active = isActive(c.href, pathname);
             return (
               <Link
                 key={c.href}
@@ -161,11 +186,16 @@ function SidebarGroup({
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                   active
-                    ? "bg-secondary font-medium text-secondary-foreground"
+                    ? "bg-primary/10 font-medium text-primary"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 shrink-0 rounded-full transition-colors",
+                    active ? "bg-primary" : "bg-current opacity-60",
+                  )}
+                />
                 {c.label}
               </Link>
             );

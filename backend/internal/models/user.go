@@ -33,11 +33,18 @@ type User struct {
 	MiddleName         string              `bson:"middleName,omitempty" json:"middleName,omitempty"` // Sharif
 	FullName           string              `bson:"fullName" json:"fullName"`
 	Phone              string              `bson:"phone" json:"phone"`
+	Gender             string              `bson:"gender,omitempty" json:"gender,omitempty"` // male | female
 	Address            string              `bson:"address,omitempty" json:"address,omitempty"`
+	AvatarURL          string              `bson:"avatarUrl,omitempty" json:"avatarUrl,omitempty"` // S3 dagi rasm manzili
+	AvatarKey          string              `bson:"avatarKey,omitempty" json:"avatarKey,omitempty"` // S3 obyekt kaliti (ichki)
 	PasswordHash       string              `bson:"passwordHash" json:"-"`
 	MustChangePassword bool                `bson:"mustChangePassword" json:"mustChangePassword"`
 	Status             UserStatus          `bson:"status" json:"status"`
 	NoteCourseID       *primitive.ObjectID `bson:"noteCourseId,omitempty" json:"noteCourseId,omitempty"` // student informational tag
+	BirthDate          string              `bson:"birthDate,omitempty" json:"birthDate,omitempty"`           // student: YYYY-MM-DD
+	DocumentType       string              `bson:"documentType,omitempty" json:"documentType,omitempty"`     // passport | birth_certificate
+	DocumentSeries     string              `bson:"documentSeries,omitempty" json:"documentSeries,omitempty"` // student: hujjat seriyasi (masalan AA)
+	DocumentNumber     string              `bson:"documentNumber,omitempty" json:"documentNumber,omitempty"` // student: hujjat raqami
 	Specialization     string              `bson:"specialization,omitempty" json:"specialization,omitempty"` // deprecated: use Specializations
 	Specializations    []string            `bson:"specializations,omitempty" json:"specializations,omitempty"` // mentor: multiple
 	ParentID           *primitive.ObjectID `bson:"parentId,omitempty" json:"parentId,omitempty"` // student -> parent

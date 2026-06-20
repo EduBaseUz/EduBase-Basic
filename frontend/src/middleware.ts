@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const ACCESS_COOKIE = "edubase_access";
+const REFRESH_COOKIE = "edubase_refresh";
 
 type Role = "admin" | "mentor" | "student" | "parent";
 
@@ -36,9 +37,13 @@ const PROTECTED_PREFIXES = ["/admin", "/mentor", "/student"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const token = req.cookies.get(ACCESS_COOKIE)?.value;
+  // Access token 15 daqiqada tugaydi; refresh cookie (7 kun) bo'lsa ham
+  // foydalanuvchi tizimda hisoblanadi — sahifa ochilganda token yangilanadi.
+  const accessToken = req.cookies.get(ACCESS_COOKIE)?.value;
+  const refreshToken = req.cookies.get(REFRESH_COOKIE)?.value;
+  const token = accessToken ?? refreshToken;
   const role = roleFromToken(token);
-  const isAuthed = Boolean(token);
+  const isAuthed = Boolean(accessToken || refreshToken);
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
 

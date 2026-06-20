@@ -14,6 +14,7 @@ import (
 	mongorepo "edubase/backend/internal/repositories/mongo"
 	"edubase/backend/internal/server"
 	"edubase/backend/internal/services"
+	"edubase/backend/internal/storage"
 	"edubase/backend/pkg/jwt"
 )
 
@@ -42,7 +43,22 @@ func main() {
 	repos := mongorepo.NewRepositories(db)
 	jwtMgr := jwt.NewManager(cfg.AccessSecret, cfg.RefreshSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	svc := services.New(repos, jwtMgr)
-	h := handlers.New(svc, jwtMgr, cfg)
+
+	// Object storage (S3) for avatars. Optional in local dev: if the bucket is
+	// not configured, avatar upload endpoints return an error but the app runs.
+	var store *storage.S3Storage
+	if cfg.S3Bucket != "" {
+		store, err = storage.NewS3Storage(ctx, cfg.AWSRegion, cfg.S3Bucket, cfg.AWSAccessKey, cfg.AWSSecretKey)
+		if err != nil {
+			slog.Error("s3 init failed", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("s3 storage ready", "bucket", cfg.S3Bucket, "region", cfg.AWSRegion)
+	} else {
+		slog.Warn("S3 not configured (AWS_S3_BUCKET empty); avatar upload disabled")
+	}
+
+	h := handlers.New(svc, jwtMgr, cfg, store)
 
 	router := server.New(cfg, h, jwtMgr, repos.Users)
 

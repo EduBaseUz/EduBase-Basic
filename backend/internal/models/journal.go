@@ -14,6 +14,14 @@ const (
 	LessonCancelled LessonStatus = "cancelled"
 )
 
+// LessonKind distinguishes a counted main lesson from an unlimited extra one.
+type LessonKind string
+
+const (
+	LessonMain  LessonKind = "main"  // asosiy dars — oylik songa kiradi
+	LessonExtra LessonKind = "extra" // qo'shimcha dars — cheksiz
+)
+
 // Lesson is a single class session created by a mentor. Pricing values are
 // snapshotted at creation so later rate changes never alter historical money.
 type Lesson struct {
@@ -22,6 +30,7 @@ type Lesson struct {
 	ConductedByMentorID primitive.ObjectID `bson:"conductedByMentorId" json:"conductedByMentorId"`
 	Date               time.Time          `bson:"date" json:"date"`
 	Topic              string             `bson:"topic" json:"topic"`
+	Kind               LessonKind         `bson:"kind,omitempty" json:"kind,omitempty"` // main | extra
 	MonthIndex         int                `bson:"monthIndex" json:"monthIndex"`
 	StudentLessonPrice int64              `bson:"studentLessonPrice" json:"studentLessonPrice"` // snapshot
 	MentorRateSnapshot int64              `bson:"mentorRateSnapshot" json:"mentorRateSnapshot"` // snapshot

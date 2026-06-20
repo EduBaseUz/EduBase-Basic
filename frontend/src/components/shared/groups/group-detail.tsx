@@ -1,8 +1,7 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, UserPlus, X } from "lucide-react";
+import { ArrowLeft, Pencil, Settings2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -10,19 +9,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { PageHeader } from "@/components/shared/page-header";
-import { useToast } from "@/components/ui/toast";
+import { buttonVariants } from "@/components/ui/button";
 import {
-  useGroup,
-  useSetGroupMentors,
-  useAddStudent,
-  useRemoveStudent,
-} from "@/hooks/use-groups";
-import { useUsers } from "@/hooks/use-users";
-import { ApiError } from "@/lib/api";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { PageHeader } from "@/components/shared/page-header";
+import { useGroup } from "@/hooks/use-groups";
 import { formatPhoneDisplay, formatDate } from "@/lib/utils";
 import { GROUP_BASE, dayLabels } from "@/components/shared/groups/group-config";
 
@@ -35,15 +32,23 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function OutcomeBadge({ outcome }: { outcome?: string }) {
+  switch (outcome) {
+    case "passed":
+      return <Badge variant="success">O&apos;tdi</Badge>;
+    case "repeat":
+      return <Badge variant="warning">Yiqildi</Badge>;
+    case "transferred":
+      return <Badge variant="outline">Ko&apos;chirildi</Badge>;
+    case "dropped":
+      return <Badge variant="destructive">Chiqarildi</Badge>;
+    default:
+      return <Badge variant="outline">—</Badge>;
+  }
+}
+
 export function GroupDetail({ id }: { id: string }) {
   const { data, isLoading } = useGroup(id);
-  const { data: mentors } = useUsers({ role: "mentor" });
-  const { data: students } = useUsers({ role: "student" });
-  const setMentors = useSetGroupMentors();
-  const addStudent = useAddStudent();
-  const removeStudent = useRemoveStudent();
-  const { toast } = useToast();
-  const [studentToAdd, setStudentToAdd] = React.useState("");
 
   if (isLoading || !data) {
     return <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>;
@@ -51,52 +56,11 @@ export function GroupDetail({ id }: { id: string }) {
 
   const g = data.group;
   const enrolled = data.students.filter((s) => s.enrollment.status === "active");
-  const enrolledIds = new Set(enrolled.map((s) => s.user.id));
-  const mentorIds = new Set(g.mentorIds);
-
-  const toggleMentor = async (mid: string) => {
-    const next = new Set(mentorIds);
-    if (next.has(mid)) next.delete(mid);
-    else next.add(mid);
-    try {
-      await setMentors.mutateAsync({ id, mentorIds: Array.from(next) });
-      toast({ title: "Mentorlar yangilandi", variant: "success" });
-    } catch (err) {
-      toast({
-        title: "Xatolik",
-        description: err instanceof ApiError ? err.message : "Xatolik",
-        variant: "error",
-      });
-    }
-  };
-
-  const onAdd = async () => {
-    if (!studentToAdd) return;
-    try {
-      await addStudent.mutateAsync({ id, studentId: studentToAdd });
-      toast({ title: "O'quvchi qo'shildi", variant: "success" });
-      setStudentToAdd("");
-    } catch (err) {
-      toast({
-        title: "Qo'shib bo'lmadi",
-        description: err instanceof ApiError ? err.message : "Xatolik",
-        variant: "error",
-      });
-    }
-  };
-
-  const onRemove = async (sid: string) => {
-    try {
-      await removeStudent.mutateAsync({ id, studentId: sid });
-      toast({ title: "O'quvchi chiqarildi", variant: "success" });
-    } catch (err) {
-      toast({
-        title: "Xatolik",
-        description: err instanceof ApiError ? err.message : "Xatolik",
-        variant: "error",
-      });
-    }
-  };
+  const past = data.students
+    .filter((s) => s.enrollment.status === "left")
+    .sort((a, b) =>
+      (b.enrollment.leftAt ?? "").localeCompare(a.enrollment.leftAt ?? ""),
+    );
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -116,6 +80,12 @@ export function GroupDetail({ id }: { id: string }) {
             >
               <Pencil className="h-4 w-4" /> Tahrirlash
             </Link>
+            <Link
+              href={`${GROUP_BASE}/${id}/settings`}
+              className={buttonVariants({ size: "sm" })}
+            >
+              <Settings2 className="h-4 w-4" /> Sozlamalar
+            </Link>
           </div>
         }
       />
@@ -127,10 +97,7 @@ export function GroupDetail({ id }: { id: string }) {
           </CardHeader>
           <CardContent>
             <InfoRow label="Nomi" value={g.name} />
-            <InfoRow
-              label="Mutaxassislik"
-              value={data.course?.title ?? "—"}
-            />
+            <InfoRow label="Mutaxassislik" value={data.course?.title ?? "—"} />
             <InfoRow
               label="Jadval"
               value={`${dayLabels(g.schedule.days)} ${g.schedule.startTime}-${g.schedule.endTime}`}
@@ -153,27 +120,25 @@ export function GroupDetail({ id }: { id: string }) {
             <CardTitle>Mentorlar</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {mentors?.items.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => toggleMentor(m.id)}
-                  className={`rounded-md border px-3 py-1 text-sm transition-colors ${
-                    mentorIds.has(m.id)
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background"
-                  }`}
-                >
-                  {m.fullName}
-                </button>
-              ))}
-              {!mentors?.items.length && (
-                <span className="text-sm text-muted-foreground">
-                  Mentorlar yo'q
-                </span>
-              )}
-            </div>
+            {!data.mentors.length ? (
+              <p className="text-sm text-muted-foreground">
+                Mentor biriktirilmagan.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {data.mentors.map((m) => (
+                  <li
+                    key={m.id}
+                    className="rounded-md border px-3 py-2 text-sm"
+                  >
+                    <p className="font-medium">{m.fullName}</p>
+                    <p className="text-muted-foreground">
+                      {formatPhoneDisplay(m.phone)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -184,58 +149,75 @@ export function GroupDetail({ id }: { id: string }) {
             O'quvchilar ({enrolled.length}/{g.studentLimit})
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>O'quvchi qo'shish</Label>
-            <div className="flex gap-2">
-              <Select
-                value={studentToAdd}
-                onChange={(e) => setStudentToAdd(e.target.value)}
-              >
-                <option value="">— Tanlang —</option>
-                {students?.items
-                  .filter((s) => !enrolledIds.has(s.id))
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.fullName} ({formatPhoneDisplay(s.phone)})
-                    </option>
-                  ))}
-              </Select>
-              <Button onClick={onAdd} disabled={!studentToAdd || addStudent.isPending}>
-                <UserPlus className="h-4 w-4" /> Qo'shish
-              </Button>
-            </div>
-          </div>
-
-          <div className="divide-y rounded-md border">
-            {enrolled.map((s) => (
-              <div
-                key={s.user.id}
-                className="flex items-center justify-between px-3 py-2 text-sm"
-              >
-                <span>
-                  {s.user.fullName}{" "}
-                  <span className="text-muted-foreground">
-                    {formatPhoneDisplay(s.user.phone)}
-                  </span>
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onRemove(s.user.id)}
-                >
-                  <X className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
-            {!enrolled.length && (
-              <p className="px-3 py-4 text-sm text-muted-foreground">
-                Hozircha o'quvchi yo'q
-              </p>
-            )}
-          </div>
+        <CardContent>
+          {!enrolled.length ? (
+            <p className="text-sm text-muted-foreground">Hozircha o'quvchi yo'q.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>T/R</TableHead>
+                  <TableHead>F.I.O.</TableHead>
+                  <TableHead>Telefon</TableHead>
+                  <TableHead>Qo'shilgan sana</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {enrolled.map((s, i) => (
+                  <TableRow key={s.user.id}>
+                    <TableCell className="text-muted-foreground">
+                      {i + 1}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {s.user.fullName}
+                    </TableCell>
+                    <TableCell>{formatPhoneDisplay(s.user.phone)}</TableCell>
+                    <TableCell>{formatDate(s.enrollment.joinedAt)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
+
+      {past.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Guruh tarixi ({past.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>T/R</TableHead>
+                  <TableHead>F.I.O.</TableHead>
+                  <TableHead>Natija</TableHead>
+                  <TableHead>Chiqqan sana</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {past.map((s, i) => (
+                  <TableRow key={s.enrollment.id}>
+                    <TableCell className="text-muted-foreground">
+                      {i + 1}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {s.user.fullName}
+                    </TableCell>
+                    <TableCell>
+                      <OutcomeBadge outcome={s.enrollment.outcome} />
+                    </TableCell>
+                    <TableCell>
+                      {s.enrollment.leftAt ? formatDate(s.enrollment.leftAt) : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

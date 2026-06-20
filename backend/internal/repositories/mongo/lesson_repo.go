@@ -81,10 +81,14 @@ func (r *lessonRepo) ListByMentorPeriod(ctx context.Context, mentorID primitive.
 func (r *lessonRepo) Update(ctx context.Context, l *models.Lesson) error {
 	l.UpdatedAt = time.Now()
 	_, err := r.c.UpdateOne(ctx, bson.M{"_id": l.ID}, bson.M{"$set": bson.M{
-		"date":      l.Date,
-		"topic":     l.Topic,
-		"status":    l.Status,
-		"updatedAt": l.UpdatedAt,
+		"date":               l.Date,
+		"topic":              l.Topic,
+		"kind":               l.Kind,
+		"monthIndex":         l.MonthIndex,
+		"studentLessonPrice": l.StudentLessonPrice,
+		"mentorRateSnapshot": l.MentorRateSnapshot,
+		"status":             l.Status,
+		"updatedAt":          l.UpdatedAt,
 	}})
 	return err
 }

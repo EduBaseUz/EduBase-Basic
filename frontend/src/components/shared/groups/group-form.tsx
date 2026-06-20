@@ -23,8 +23,8 @@ import {
   useUpdateGroup,
 } from "@/hooks/use-groups";
 import { useCourses } from "@/hooks/use-courses";
-import { useUsers } from "@/hooks/use-users";
 import { ApiError } from "@/lib/api";
+import { formatDate } from "@/lib/utils";
 import { GROUP_BASE, DAYS } from "@/components/shared/groups/group-config";
 
 interface GroupFormValues {
@@ -46,6 +46,15 @@ function ReqLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Sanaga oylar qo'shadi (YYYY-MM-DD). */
+function addMonths(dateStr: string, months: number): string {
+  if (!dateStr || !months) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
 export function GroupForm({
   mode,
   id,
@@ -56,18 +65,17 @@ export function GroupForm({
   const router = useRouter();
   const { toast } = useToast();
   const { data: courses } = useCourses();
-  const { data: mentors } = useUsers({ role: "mentor" });
   const { data: detail } = useGroup(mode === "edit" ? id : undefined);
   const createGroup = useCreateGroup();
   const updateGroup = useUpdateGroup();
 
   const [days, setDays] = React.useState<string[]>(["mon", "wed", "fri"]);
-  const [mentorIds, setMentorIds] = React.useState<string[]>([]);
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<GroupFormValues>({
     defaultValues: {
@@ -96,7 +104,6 @@ export function GroupForm({
         status: g.status,
       });
       setDays(g.schedule.days);
-      setMentorIds(g.mentorIds);
     }
   }, [mode, detail, reset]);
 
@@ -104,10 +111,13 @@ export function GroupForm({
     setDays((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
     );
-  const toggleMentor = (mid: string) =>
-    setMentorIds((prev) =>
-      prev.includes(mid) ? prev.filter((x) => x !== mid) : [...prev, mid],
-    );
+
+  // Tanlangan mutaxassislik davomiyligiga qarab tugash sanasini hisoblaymiz.
+  const watchedCourseId = watch("courseId");
+  const watchedStartDate = watch("startDate");
+  const selectedCourse = courses?.items.find((c) => c.id === watchedCourseId);
+  const durationMonths = selectedCourse?.durationMonths ?? 0;
+  const computedEnd = addMonths(watchedStartDate, durationMonths);
 
   const onSubmit = async (values: GroupFormValues) => {
     if (days.length === 0) {
@@ -125,7 +135,7 @@ export function GroupForm({
         await createGroup.mutateAsync({
           name: values.name,
           courseId: values.courseId,
-          mentorIds,
+          mentorIds: [], // mentorlar alohida — guruh sahifasida biriktiriladi
           studentLimit: Number(values.studentLimit),
           startDate: values.startDate,
           schedule,
@@ -206,36 +216,6 @@ export function GroupForm({
               </div>
             </div>
 
-            {mode === "create" && (
-              <div className="space-y-2">
-                <Label>Mentorlar</Label>
-                <div className="flex flex-wrap gap-2">
-                  {mentors?.items.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => toggleMentor(m.id)}
-                      className={`rounded-md border px-3 py-1 text-sm ${
-                        mentorIds.includes(m.id)
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-background"
-                      }`}
-                    >
-                      {m.fullName}
-                    </button>
-                  ))}
-                  {!mentors?.items.length && (
-                    <span className="text-sm text-muted-foreground">
-                      Avval mentor qo'shing
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Mentorlarni keyin guruh sahifasida ham boshqarish mumkin.
-                </p>
-              </div>
-            )}
-
             <div className="space-y-2">
               <ReqLabel>Dars kunlari</ReqLabel>
               <div className="flex flex-wrap gap-2">
@@ -285,17 +265,30 @@ export function GroupForm({
                 <ReqLabel>Boshlanish sanasi</ReqLabel>
                 <Input type="date" {...register("startDate", { required: true })} />
               </div>
-              {mode === "edit" && (
-                <div className="space-y-2">
-                  <Label>Holat</Label>
-                  <Select {...register("status")}>
-                    <option value="active">Faol</option>
-                    <option value="paused">To'xtatilgan</option>
-                    <option value="finished">Tugagan</option>
-                  </Select>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label>Tugash sanasi (taxminiy)</Label>
+                <Input
+                  readOnly
+                  value={
+                    computedEnd
+                      ? `${formatDate(computedEnd)} (${durationMonths} oy)`
+                      : "Mutaxassislik va sanani tanlang"
+                  }
+                  className="bg-muted text-muted-foreground"
+                />
+              </div>
             </div>
+
+            {mode === "edit" && (
+              <div className="space-y-2">
+                <Label>Holat</Label>
+                <Select {...register("status")}>
+                  <option value="active">Faol</option>
+                  <option value="paused">To'xtatilgan</option>
+                  <option value="finished">Tugagan</option>
+                </Select>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Link href={GROUP_BASE} className={buttonVariants({ variant: "outline" })}>

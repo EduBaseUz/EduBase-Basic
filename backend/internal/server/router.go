@@ -55,6 +55,7 @@ func New(cfg *config.Config, h *handlers.Handlers, jwtMgr *jwt.Manager, users re
 				r.Get("/groups/{id}/lessons", h.ListLessons)
 				r.Get("/me/groups", h.MyGroups)
 				r.Patch("/me/profile", h.UpdateProfile)
+				r.Post("/me/avatar", h.UploadMyAvatar)
 
 				// Mentor + Admin: view a lesson roster.
 				r.Group(func(r chi.Router) {
@@ -93,6 +94,7 @@ func New(cfg *config.Config, h *handlers.Handlers, jwtMgr *jwt.Manager, users re
 					r.Get("/users/{id}/detail", h.UserDetail)
 					r.Patch("/users/{id}", h.UpdateUser)
 					r.Delete("/users/{id}", h.DeleteUser)
+					r.Post("/users/{id}/avatar", h.UploadUserAvatar)
 					r.Post("/users/{id}/reset-password", h.ResetUserPassword)
 					r.Post("/users/{id}/parent", h.AssignParent)
 					r.Post("/users/{id}/children", h.SetChildren)
@@ -111,17 +113,34 @@ func New(cfg *config.Config, h *handlers.Handlers, jwtMgr *jwt.Manager, users re
 					r.Post("/groups/{id}/mentors", h.SetGroupMentors)
 					r.Post("/groups/{id}/students", h.AddGroupStudent)
 					r.Delete("/groups/{id}/students/{sid}", h.RemoveGroupStudent)
+					r.Post("/groups/{id}/students/{sid}/move", h.MoveGroupStudent)
+					r.Post("/groups/{id}/promote", h.PromoteGroupStudents)
 
 					// Finance
 					r.Get("/finance/summary", h.FinanceSummary)
 					r.Get("/tuition", h.ListTuition)
+					r.Get("/tuition/student/{id}", h.StudentTuitionHistory)
 					r.Post("/tuition/{id}/transactions", h.AddTuitionTransaction)
+					r.Delete("/tuition/{id}/transactions/{txnId}", h.DeleteTuitionTransaction)
 					r.Patch("/tuition/{id}", h.UpdateTuition)
 					r.Get("/payouts", h.ListPayouts)
 					r.Post("/payouts/{id}/transactions", h.AddPayoutTransaction)
+					r.Delete("/payouts/{id}/transactions/{txnId}", h.DeletePayoutTransaction)
+					r.Get("/finance/debtors", h.Debtors)
+
+					// Qo'shimcha to'lovlar (tashkiliy kirim/chiqim)
+					r.Get("/finance/org-transactions", h.ListOrgTransactions)
+					r.Post("/finance/org-transactions", h.CreateOrgTransaction)
+					r.Patch("/finance/org-transactions/{id}", h.UpdateOrgTransaction)
+					r.Delete("/finance/org-transactions/{id}", h.DeleteOrgTransaction)
 
 					// Dashboard
 					r.Get("/dashboard/admin", h.AdminDashboard)
+
+					// Settings: default avatar library
+					r.Get("/settings/avatars", h.ListDefaultAvatars)
+					r.Post("/settings/avatars", h.UploadDefaultAvatar)
+					r.Delete("/settings/avatars/{id}", h.DeleteDefaultAvatar)
 				})
 			})
 		})

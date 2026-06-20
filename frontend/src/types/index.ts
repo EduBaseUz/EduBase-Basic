@@ -3,6 +3,17 @@
 export type Role = "admin" | "mentor" | "student" | "parent";
 export type UserStatus = "active" | "inactive";
 
+export type Gender = "male" | "female";
+export type AvatarGender = "male" | "female" | "both";
+
+export interface DefaultAvatar {
+  id: string;
+  url: string;
+  key: string;
+  gender: AvatarGender;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   role: Role;
@@ -11,10 +22,16 @@ export interface User {
   middleName?: string;
   fullName: string;
   phone: string;
+  gender?: Gender;
   address?: string;
+  avatarUrl?: string;
   mustChangePassword: boolean;
   status: UserStatus;
   noteCourseId?: string;
+  birthDate?: string;
+  documentType?: "passport" | "birth_certificate";
+  documentSeries?: string;
+  documentNumber?: string;
   specialization?: string;
   specializations?: string[];
   parentId?: string;
@@ -31,9 +48,30 @@ export interface UserDetail {
   children?: User[];
 }
 
+export type OrgTxnKind = "income" | "expense";
+
+export interface OrgTransaction {
+  id: string;
+  kind: OrgTxnKind;
+  category?: string;
+  amount: number;
+  comment?: string;
+  date: string;
+  by: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MonthlyPrice {
   monthIndex: number;
   price: number;
+}
+
+export interface PriceEntry {
+  startDate: string;
+  endDate: string;
+  price: number;
+  mentorRate: number;
 }
 
 export interface Course {
@@ -42,6 +80,7 @@ export interface Course {
   description?: string;
   durationMonths: number;
   monthlyPrices: MonthlyPrice[];
+  priceEntries?: PriceEntry[];
   lessonsPerMonth: number;
   mentorRatePerStudent: number;
   status: "active" | "archived";
@@ -69,6 +108,13 @@ export interface Group {
   updatedAt: string;
 }
 
+export type EnrollmentOutcome =
+  | ""
+  | "passed"
+  | "repeat"
+  | "transferred"
+  | "dropped";
+
 export interface Enrollment {
   id: string;
   studentId: string;
@@ -76,6 +122,7 @@ export interface Enrollment {
   joinedAt: string;
   leftAt?: string;
   status: "active" | "left";
+  outcome?: EnrollmentOutcome;
 }
 
 export interface GroupDetail {
@@ -87,12 +134,15 @@ export interface GroupDetail {
 
 export type AttendanceStatus = "present" | "late" | "excused" | "absent";
 
+export type LessonKind = "main" | "extra";
+
 export interface Lesson {
   id: string;
   groupId: string;
   conductedByMentorId: string;
   date: string;
   topic: string;
+  kind?: LessonKind;
   monthIndex: number;
   studentLessonPrice: number;
   mentorRateSnapshot: number;
@@ -147,6 +197,7 @@ export interface RatingRow {
 export type PayStatus = "pending" | "partial" | "paid";
 
 export interface Transaction {
+  id: string;
   date: string;
   amount: number;
   comment?: string;
@@ -167,10 +218,36 @@ export interface TuitionLedger {
 export interface Payout {
   id: string;
   mentorId: string;
+  courseId?: string;
   period: string;
   earnedAmount: number;
   transactions: Transaction[];
   status: PayStatus;
+}
+
+export interface StudentLedger {
+  ledger: TuitionLedger;
+  student: User;
+  groupName: string;
+}
+
+export interface MentorPayout {
+  payout: Payout;
+  mentor: User;
+}
+
+export interface BalanceRow {
+  userId: string;
+  fullName: string;
+  role: "student" | "mentor";
+  charged: number;
+  paid: number;
+  balance: number;
+}
+
+export interface DebtorsResponse {
+  students: BalanceRow[];
+  mentors: BalanceRow[];
 }
 
 export interface MonthlyPoint {

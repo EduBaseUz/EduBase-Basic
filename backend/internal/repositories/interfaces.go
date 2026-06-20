@@ -68,6 +68,7 @@ type GroupRepository interface {
 	GetByID(ctx context.Context, id primitive.ObjectID) (*models.Group, error)
 	List(ctx context.Context, status string, p Page) ([]models.Group, int64, error)
 	ListByMentor(ctx context.Context, mentorID primitive.ObjectID, p Page) ([]models.Group, int64, error)
+	ListByCourse(ctx context.Context, courseID primitive.ObjectID) ([]models.Group, error)
 	ListByIDs(ctx context.Context, ids []primitive.ObjectID) ([]models.Group, error)
 	Update(ctx context.Context, g *models.Group) error
 	Delete(ctx context.Context, id primitive.ObjectID) error
@@ -146,22 +147,46 @@ type PayoutRepository interface {
 	Create(ctx context.Context, p *models.Payout) error
 	GetByID(ctx context.Context, id primitive.ObjectID) (*models.Payout, error)
 	GetByKey(ctx context.Context, mentorID primitive.ObjectID, period string) (*models.Payout, error)
+	GetByCourseKey(ctx context.Context, mentorID, courseID primitive.ObjectID, period string) (*models.Payout, error)
 	List(ctx context.Context, period string, p Page) ([]models.Payout, int64, error)
 	ListByMentor(ctx context.Context, mentorID primitive.ObjectID) ([]models.Payout, error)
 	Update(ctx context.Context, p *models.Payout) error
 	All(ctx context.Context) ([]models.Payout, error)
 }
 
+// OrgTransactionRepository persists organizational income/expense records.
+type OrgTransactionRepository interface {
+	Create(ctx context.Context, t *models.OrgTransaction) error
+	GetByID(ctx context.Context, id primitive.ObjectID) (*models.OrgTransaction, error)
+	List(ctx context.Context, p Page) ([]models.OrgTransaction, int64, error)
+	Update(ctx context.Context, t *models.OrgTransaction) error
+	Delete(ctx context.Context, id primitive.ObjectID) error
+	All(ctx context.Context) ([]models.OrgTransaction, error)
+}
+
+// DefaultAvatarRepository persists the reusable avatar library.
+type DefaultAvatarRepository interface {
+	Create(ctx context.Context, a *models.DefaultAvatar) error
+	List(ctx context.Context) ([]models.DefaultAvatar, error)
+	GetByID(ctx context.Context, id primitive.ObjectID) (*models.DefaultAvatar, error)
+	Delete(ctx context.Context, id primitive.ObjectID) error
+	// RandomForGender returns a random avatar matching the given gender or tagged
+	// "both", or (nil, nil) when none is available.
+	RandomForGender(ctx context.Context, gender string) (*models.DefaultAvatar, error)
+}
+
 // Repositories bundles all repositories for easy injection.
 type Repositories struct {
-	Users       UserRepository
-	Courses     CourseRepository
-	Groups      GroupRepository
-	Enrollments EnrollmentRepository
-	Lessons     LessonRepository
-	Homeworks   HomeworkRepository
-	Attendances AttendanceRepository
-	Grades      GradeRepository
-	Tuition     TuitionRepository
-	Payouts     PayoutRepository
+	Users          UserRepository
+	Courses        CourseRepository
+	Groups         GroupRepository
+	Enrollments    EnrollmentRepository
+	Lessons        LessonRepository
+	Homeworks      HomeworkRepository
+	Attendances    AttendanceRepository
+	Grades         GradeRepository
+	Tuition        TuitionRepository
+	Payouts         PayoutRepository
+	DefaultAvatars  DefaultAvatarRepository
+	OrgTransactions OrgTransactionRepository
 }

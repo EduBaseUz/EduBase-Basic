@@ -29,9 +29,6 @@ const BASE = "/admin/courses";
 interface CourseFormValues {
   title: string;
   description: string;
-  durationMonths: number;
-  lessonsPerMonth: number;
-  mentorRatePerStudent: number;
 }
 
 function ReqLabel({ children }: { children: React.ReactNode }) {
@@ -55,73 +52,41 @@ export function CourseForm({
   const createCourse = useCreateCourse();
   const updateCourse = useUpdateCourse();
 
-  const [prices, setPrices] = React.useState<number[]>(Array(6).fill(0));
   const {
     register,
     handleSubmit,
     reset,
-    watch,
     formState: { errors },
   } = useForm<CourseFormValues>({
-    defaultValues: {
-      title: "",
-      description: "",
-      durationMonths: 6,
-      lessonsPerMonth: 8,
-      mentorRatePerStudent: 20000,
-    },
+    defaultValues: { title: "", description: "" },
   });
-  const duration = Number(watch("durationMonths")) || 0;
-
-  React.useEffect(() => {
-    setPrices((prev) => {
-      const next = [...prev];
-      if (duration > next.length) {
-        const fill = next[next.length - 1] ?? 0;
-        while (next.length < duration) next.push(fill);
-      } else {
-        next.length = duration;
-      }
-      return next;
-    });
-  }, [duration]);
 
   React.useEffect(() => {
     if (mode === "edit" && existing) {
       reset({
         title: existing.title,
         description: existing.description ?? "",
-        durationMonths: existing.durationMonths,
-        lessonsPerMonth: existing.lessonsPerMonth,
-        mentorRatePerStudent: existing.mentorRatePerStudent,
       });
-      const arr = Array(existing.durationMonths).fill(0);
-      existing.monthlyPrices.forEach((mp) => {
-        if (mp.monthIndex >= 1 && mp.monthIndex <= arr.length)
-          arr[mp.monthIndex - 1] = mp.price;
-      });
-      setPrices(arr);
     }
   }, [mode, existing, reset]);
 
   const onSubmit = async (values: CourseFormValues) => {
-    const body: Record<string, unknown> = {
-      title: values.title,
-      description: values.description,
-      durationMonths: Number(values.durationMonths),
-      lessonsPerMonth: Number(values.lessonsPerMonth),
-      mentorRatePerStudent: Number(values.mentorRatePerStudent),
-      monthlyPrices: prices.map((price, i) => ({
-        monthIndex: i + 1,
-        price: Number(price) || 0,
-      })),
-    };
     try {
       if (mode === "create") {
-        await createCourse.mutateAsync(body);
-        toast({ title: "Qo'shildi", variant: "success" });
+        await createCourse.mutateAsync({
+          title: values.title,
+          description: values.description,
+        });
+        toast({
+          title: "Mutaxassislik qo'shildi",
+          description: "Sozlamalarda davomiyligi va to'lovni kiriting",
+          variant: "success",
+        });
       } else if (id) {
-        await updateCourse.mutateAsync({ id, body });
+        await updateCourse.mutateAsync({
+          id,
+          body: { title: values.title, description: values.description },
+        });
         toast({ title: "Yangilandi", variant: "success" });
       }
       router.push(BASE);
@@ -159,75 +124,22 @@ export function CourseForm({
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             <div className="space-y-2">
-              <ReqLabel>Nomi</ReqLabel>
+              <ReqLabel>Mutaxassislik nomi</ReqLabel>
               <Input
                 placeholder="Masalan: Frontend dasturlash"
                 aria-invalid={!!errors.title}
                 {...register("title", { required: true })}
               />
+              {errors.title && (
+                <p className="text-xs text-destructive">Nomni kiriting</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>Tavsif</Label>
+              <Label>Mutaxassislik tasnifi</Label>
               <Textarea
                 placeholder="Mutaxassislik haqida qisqacha"
                 {...register("description")}
               />
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="space-y-2">
-                <ReqLabel>Davomiyligi (oy)</ReqLabel>
-                <Input
-                  type="number"
-                  min={1}
-                  placeholder="6"
-                  {...register("durationMonths", { required: true })}
-                />
-              </div>
-              <div className="space-y-2">
-                <ReqLabel>Oylik darslar</ReqLabel>
-                <Input
-                  type="number"
-                  min={1}
-                  placeholder="8"
-                  {...register("lessonsPerMonth", { required: true })}
-                />
-              </div>
-              <div className="space-y-2">
-                <ReqLabel>1 kishilik to'lov</ReqLabel>
-                <Input
-                  type="number"
-                  min={0}
-                  placeholder="20000"
-                  {...register("mentorRatePerStudent", { required: true })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Oylik narxlar (so'm)</Label>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {prices.map((price, i) => (
-                  <div key={i} className="space-y-1">
-                    <span className="text-xs text-muted-foreground">
-                      {i + 1}-oy
-                    </span>
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      value={price}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setPrices((prev) => {
-                          const next = [...prev];
-                          next[i] = v;
-                          return next;
-                        });
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

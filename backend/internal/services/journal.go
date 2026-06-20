@@ -41,6 +41,7 @@ func NewJournalService(
 type CreateLessonInput struct {
 	Date                string `json:"date" validate:"required"`
 	Topic               string `json:"topic" validate:"required,min=1"`
+	Kind                string `json:"kind" validate:"omitempty,oneof=main extra"`
 	HomeworkTitle       string `json:"homeworkTitle"`
 	HomeworkDescription string `json:"homeworkDescription"`
 }
@@ -49,9 +50,32 @@ type CreateLessonInput struct {
 type UpdateLessonInput struct {
 	Date                *string `json:"date"`
 	Topic               *string `json:"topic"`
+	Kind                *string `json:"kind" validate:"omitempty,oneof=main extra"`
 	Status              *string `json:"status" validate:"omitempty,oneof=done cancelled"`
 	HomeworkTitle       *string `json:"homeworkTitle"`
 	HomeworkDescription *string `json:"homeworkDescription"`
+}
+
+// countMainLessonsInRange counts main lessons in a group within [start, end],
+// optionally excluding one lesson (used when editing).
+func (s *JournalService) countMainLessonsInRange(ctx context.Context, groupID primitive.ObjectID, start, end time.Time, excludeID primitive.ObjectID) (int, error) {
+	all, err := s.lessons.ListByGroupAll(ctx, groupID)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, l := range all {
+		if l.ID == excludeID {
+			continue
+		}
+		if l.Kind == models.LessonExtra { // qo'shimcha dars sanalmaydi (bo'sh = asosiy)
+			continue
+		}
+		if !l.Date.Before(start) && !l.Date.After(end) {
+			n++
+		}
+	}
+	return n, nil
 }
 
 // MentorOwnsGroup verifies a mentor is assigned to a group.
@@ -103,10 +127,42 @@ func (s *JournalService) CreateLesson(ctx context.Context, groupID, mentorID pri
 		return nil, BadRequest("Yaroqsiz sana")
 	}
 
+	kind := models.LessonKind(in.Kind)
+	if kind == "" {
+		kind = models.LessonMain
+	}
+
+	// Dars sanasi qaysi "Oylik narx" davriga tegishli? Oylik narxlar kiritilgan
+	// bo'lsa, dars o'sha davr (Boshlanish–Tugash) ichida bo'lishi shart.
+	entry := course.PriceEntryForDate(date)
+	if len(course.PriceEntries) > 0 && entry == nil {
+		return nil, BadRequest("Dars sanasi belgilangan oylik davrlardan tashqarida")
+	}
+
+	// Asosiy darslar oylik darslar sonidan oshmasligi kerak (qo'shimcha — cheksiz).
+	if kind == models.LessonMain && entry != nil && course.LessonsPerMonth > 0 {
+		count, err := s.countMainLessonsInRange(ctx, groupID, entry.StartDate, entry.EndDate, primitive.NilObjectID)
+		if err != nil {
+			return nil, err
+		}
+		if count >= course.LessonsPerMonth {
+			return nil, Conflict("Bu oy uchun asosiy darslar soni to'ldi (%d ta). Qo'shimcha dars sifatida qo'shing", course.LessonsPerMonth)
+		}
+	}
+
 	monthIndex := computeMonthIndex(g.StartDate, date, course.DurationMonths)
+
+	// Narx va 1 kishilik to'lov dars sanasiga mos davrdan olinadi; topilmasa eski
+	// umumiy sozlamaga qaytamiz. Asosiy va qo'shimcha dars bir xil narxlanadi.
+	monthlyPrice := course.PriceForMonth(monthIndex)
+	mentorRate := course.MentorRatePerStudent
+	if entry != nil {
+		monthlyPrice = entry.Price
+		mentorRate = entry.MentorRate
+	}
 	var studentPrice int64
 	if course.LessonsPerMonth > 0 {
-		studentPrice = course.PriceForMonth(monthIndex) / int64(course.LessonsPerMonth)
+		studentPrice = monthlyPrice / int64(course.LessonsPerMonth)
 	}
 
 	l := &models.Lesson{
@@ -114,9 +170,10 @@ func (s *JournalService) CreateLesson(ctx context.Context, groupID, mentorID pri
 		ConductedByMentorID: mentorID,
 		Date:                date,
 		Topic:               in.Topic,
+		Kind:                kind,
 		MonthIndex:          monthIndex,
 		StudentLessonPrice:  studentPrice,
-		MentorRateSnapshot:  course.MentorRatePerStudent,
+		MentorRateSnapshot:  mentorRate,
 		Status:              models.LessonDone,
 	}
 	if err := s.lessons.Create(ctx, l); err != nil {
@@ -166,15 +223,18 @@ func (s *JournalService) UpdateLesson(ctx context.Context, lessonID, mentorID pr
 	if err != nil {
 		return nil, err
 	}
-	if !isAdmin {
-		g, err := s.groups.GetByID(ctx, l.GroupID)
-		if err != nil {
-			return nil, err
-		}
-		if !MentorOwnsGroup(g, mentorID) {
-			return nil, Forbidden("Siz ushbu guruhga biriktirilmagansiz")
-		}
+	g, err := s.groups.GetByID(ctx, l.GroupID)
+	if err != nil {
+		return nil, err
 	}
+	if !isAdmin && !MentorOwnsGroup(g, mentorID) {
+		return nil, Forbidden("Siz ushbu guruhga biriktirilmagansiz")
+	}
+	course, err := s.courses.GetByID(ctx, g.CourseID)
+	if err != nil {
+		return nil, err
+	}
+
 	if in.Date != nil {
 		d, err := parseDate(*in.Date)
 		if err != nil {
@@ -185,9 +245,46 @@ func (s *JournalService) UpdateLesson(ctx context.Context, lessonID, mentorID pr
 	if in.Topic != nil {
 		l.Topic = *in.Topic
 	}
+	if in.Kind != nil {
+		l.Kind = models.LessonKind(*in.Kind)
+	}
 	if in.Status != nil {
 		l.Status = models.LessonStatus(*in.Status)
 	}
+
+	// Sana belgilangan oylik davr ichida bo'lishi shart.
+	entry := course.PriceEntryForDate(l.Date)
+	if len(course.PriceEntries) > 0 && entry == nil {
+		return nil, BadRequest("Dars sanasi belgilangan oylik davrlardan tashqarida")
+	}
+	kind := l.Kind
+	if kind == "" {
+		kind = models.LessonMain
+	}
+	// Asosiy dars limiti (o'zidan tashqari hisoblaymiz).
+	if kind == models.LessonMain && entry != nil && course.LessonsPerMonth > 0 {
+		count, err := s.countMainLessonsInRange(ctx, l.GroupID, entry.StartDate, entry.EndDate, l.ID)
+		if err != nil {
+			return nil, err
+		}
+		if count >= course.LessonsPerMonth {
+			return nil, Conflict("Bu oy uchun asosiy darslar soni to'ldi (%d ta)", course.LessonsPerMonth)
+		}
+	}
+
+	// Oy indeksi va narxni dars sanasiga ko'ra yangilaymiz.
+	l.MonthIndex = computeMonthIndex(g.StartDate, l.Date, course.DurationMonths)
+	monthlyPrice := course.PriceForMonth(l.MonthIndex)
+	mentorRate := course.MentorRatePerStudent
+	if entry != nil {
+		monthlyPrice = entry.Price
+		mentorRate = entry.MentorRate
+	}
+	if course.LessonsPerMonth > 0 {
+		l.StudentLessonPrice = monthlyPrice / int64(course.LessonsPerMonth)
+	}
+	l.MentorRateSnapshot = mentorRate
+
 	if err := s.lessons.Update(ctx, l); err != nil {
 		return nil, err
 	}

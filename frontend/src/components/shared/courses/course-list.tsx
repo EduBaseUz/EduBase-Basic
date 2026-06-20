@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { BookOpen, Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Eye, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { useCourses, useDeleteCourse } from "@/hooks/use-courses";
-import { formatUZS } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
 import type { Course } from "@/types";
 
@@ -54,11 +53,6 @@ export function CourseList() {
     },
     { accessorKey: "lessonsPerMonth", header: "Oylik darslar" },
     {
-      id: "rate",
-      header: "1 kishilik to'lov",
-      cell: ({ row }) => formatUZS(row.original.mentorRatePerStudent),
-    },
-    {
       id: "status",
       header: "Holat",
       cell: ({ row }) =>
@@ -86,6 +80,13 @@ export function CourseList() {
             title="Tahrirlash"
           >
             <Pencil className="h-4 w-4" />
+          </Link>
+          <Link
+            href={`${BASE}/${row.original.id}/settings`}
+            className={buttonVariants({ variant: "ghost", size: "icon" })}
+            title="Sozlamalar"
+          >
+            <Settings2 className="h-4 w-4" />
           </Link>
           <Button
             variant="ghost"

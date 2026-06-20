@@ -153,7 +153,6 @@ func (h *Handlers) UserDetail(w http.ResponseWriter, r *http.Request) {
 	case models.RoleMentor:
 		groups, _, _ := h.svc.Group.ListByMentor(r.Context(), id, bigPage)
 		detail["groups"] = groups
-		_, _ = h.svc.Payout.SyncPayout(r.Context(), id, currentPeriod())
 		payouts, _ := h.svc.Payout.ListByMentor(r.Context(), id)
 		detail["payouts"] = payouts
 	case models.RoleStudent:

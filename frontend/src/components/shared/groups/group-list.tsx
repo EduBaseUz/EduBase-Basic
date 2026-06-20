@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Boxes, Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { Boxes, Eye, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable } from "@/components/shared/data-table";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -96,6 +96,13 @@ export function GroupList() {
             title="Tahrirlash"
           >
             <Pencil className="h-4 w-4" />
+          </Link>
+          <Link
+            href={`${GROUP_BASE}/${row.original.id}/settings`}
+            className={buttonVariants({ variant: "ghost", size: "icon" })}
+            title="Sozlamalar"
+          >
+            <Settings2 className="h-4 w-4" />
           </Link>
           <Button
             variant="ghost"

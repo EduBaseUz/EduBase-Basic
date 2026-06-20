@@ -16,10 +16,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { PhoneInput } from "@/components/shared/phone-input";
-import { PageHeader } from "@/components/shared/page-header";
+import { AvatarUploader } from "@/components/shared/avatar-uploader";
 import { useToast } from "@/components/ui/toast";
-import { useCreateUser, useUpdateUser, useUser } from "@/hooks/use-users";
+import {
+  useCreateUser,
+  useUpdateUser,
+  useUploadUserAvatar,
+  useUser,
+} from "@/hooks/use-users";
 import { useCourses } from "@/hooks/use-courses";
 import { ApiError } from "@/lib/api";
 import { onlyDigits } from "@/lib/utils";
@@ -29,9 +35,14 @@ const baseSchema = z.object({
   lastName: z.string().min(1, "Familiyani kiriting"),
   firstName: z.string().min(1, "Ismni kiriting"),
   middleName: z.string().optional(),
+  gender: z.enum(["male", "female"], { message: "Jinsni tanlang" }),
   phone: z.string().regex(/^\d{9}$/, "Telefon raqami to'liq emas"),
   address: z.string().optional(),
   specialization: z.string().optional(),
+  birthDate: z.string().optional(),
+  documentType: z.string().optional(),
+  documentSeries: z.string().optional(),
+  documentNumber: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof baseSchema>;
@@ -59,10 +70,13 @@ export function UserForm({ role, mode, id }: UserFormProps) {
   const { data: existing } = useUser(mode === "edit" ? id : undefined);
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const uploadAvatar = useUploadUserAvatar();
 
   // Mentor bir nechta mutaxassislikka ega bo'lishi mumkin.
   const [specs, setSpecs] = React.useState<string[]>([]);
   const [specError, setSpecError] = React.useState(false);
+  // Tanlangan avatar fayli (yaratishda — user yaratilgach yuklanadi).
+  const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
 
   const {
     register,
@@ -76,9 +90,14 @@ export function UserForm({ role, mode, id }: UserFormProps) {
       lastName: "",
       firstName: "",
       middleName: "",
+      gender: undefined,
       phone: "",
       address: "",
       specialization: "",
+      birthDate: "",
+      documentType: undefined,
+      documentSeries: "",
+      documentNumber: "",
     },
   });
 
@@ -99,9 +118,14 @@ export function UserForm({ role, mode, id }: UserFormProps) {
         lastName: last,
         firstName: first,
         middleName: middle,
+        gender: existing.gender,
         phone: onlyDigits((existing.phone ?? "").replace(/^998/, "")),
         address: existing.address ?? "",
         specialization: existing.specialization ?? "",
+        birthDate: existing.birthDate ?? "",
+        documentType: existing.documentType,
+        documentSeries: existing.documentSeries ?? "",
+        documentNumber: existing.documentNumber ?? "",
       });
       const existingSpecs =
         existing.specializations && existing.specializations.length
@@ -127,14 +151,24 @@ export function UserForm({ role, mode, id }: UserFormProps) {
       lastName: values.lastName,
       firstName: values.firstName,
       middleName: values.middleName ?? "",
+      gender: values.gender,
       phone: `998${values.phone}`,
       address: values.address ?? "",
     };
     if (role === "mentor") body.specializations = specs;
+    if (role === "student") {
+      body.birthDate = values.birthDate ?? "";
+      body.documentType = values.documentType ?? "";
+      body.documentSeries = values.documentSeries ?? "";
+      body.documentNumber = values.documentNumber ?? "";
+    }
 
     try {
       if (mode === "create") {
-        await createUser.mutateAsync({ role, ...body });
+        const created = await createUser.mutateAsync({ role, ...body });
+        if (avatarFile && created?.id) {
+          await uploadAvatar.mutateAsync({ id: created.id, file: avatarFile });
+        }
         toast({
           title: "Qo'shildi",
           description: "Boshlang'ich parol = telefon raqami",
@@ -142,6 +176,9 @@ export function UserForm({ role, mode, id }: UserFormProps) {
         });
       } else if (id) {
         await updateUser.mutateAsync({ id, body });
+        if (avatarFile) {
+          await uploadAvatar.mutateAsync({ id, file: avatarFile });
+        }
         toast({ title: "Yangilandi", variant: "success" });
       }
       router.push(meta.basePath);
@@ -155,21 +192,26 @@ export function UserForm({ role, mode, id }: UserFormProps) {
     }
   };
 
-  const pending = createUser.isPending || updateUser.isPending;
+  const pending =
+    createUser.isPending || updateUser.isPending || uploadAvatar.isPending;
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader
-        title={mode === "create" ? meta.createLabel : `${meta.singular}ni tahrirlash`}
-        action={
-          <Link
-            href={meta.basePath}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            <ArrowLeft className="h-4 w-4" /> Orqaga
-          </Link>
-        }
-      />
+      <div className="relative mb-6 flex h-9 items-center justify-center">
+        <Link
+          href={meta.basePath}
+          className={buttonVariants({
+            variant: "outline",
+            size: "sm",
+            className: "absolute left-0",
+          })}
+        >
+          <ArrowLeft className="h-4 w-4" /> Orqaga
+        </Link>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {mode === "create" ? meta.createLabel : `${meta.singular}ni tahrirlash`}
+        </h1>
+      </div>
 
       <Card>
         <CardHeader>
@@ -177,6 +219,18 @@ export function UserForm({ role, mode, id }: UserFormProps) {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            <div className="space-y-2 border-b pb-4">
+              <Label>Avatar rasmi</Label>
+              <AvatarUploader
+                currentUrl={mode === "edit" ? existing?.avatarUrl : undefined}
+                fullName={existing?.fullName}
+                onFileSelected={setAvatarFile}
+                onError={(message) =>
+                  toast({ title: "Xatolik", description: message, variant: "error" })
+                }
+              />
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <ReqLabel>Familiya</ReqLabel>
@@ -214,6 +268,20 @@ export function UserForm({ role, mode, id }: UserFormProps) {
             </div>
 
             <div className="space-y-2">
+              <ReqLabel>Jinsi</ReqLabel>
+              <Select aria-invalid={!!errors.gender} {...register("gender")}>
+                <option value="">— Tanlang —</option>
+                <option value="male">Erkak</option>
+                <option value="female">Ayol</option>
+              </Select>
+              {errors.gender && (
+                <p className="text-xs text-destructive">
+                  {errors.gender.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <ReqLabel>Telefon raqami</ReqLabel>
               <Controller
                 control={control}
@@ -244,6 +312,41 @@ export function UserForm({ role, mode, id }: UserFormProps) {
                 {...register("address")}
               />
             </div>
+
+            {role === "student" && (
+              <>
+                <div className="space-y-2">
+                  <Label>Tug'ilgan sana</Label>
+                  <Input type="date" {...register("birthDate")} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hujjat turi</Label>
+                  <Select {...register("documentType")}>
+                    <option value="">— Tanlang —</option>
+                    <option value="passport">Passport</option>
+                    <option value="birth_certificate">
+                      Tug'ilganlik guvohnomasi
+                    </option>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Hujjat seriyasi va raqami</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Seriya (AA)"
+                      className="w-28 uppercase"
+                      {...register("documentSeries")}
+                    />
+                    <span className="text-muted-foreground">—</span>
+                    <Input
+                      placeholder="Raqam (1234567)"
+                      className="flex-1"
+                      {...register("documentNumber")}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             {role === "mentor" && (
               <div className="space-y-2">

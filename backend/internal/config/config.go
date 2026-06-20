@@ -19,6 +19,12 @@ type Config struct {
 	RefreshTTL     time.Duration
 	FrontendOrigin string
 	CookieDomain   string
+
+	// AWS S3 (avatar / fayl saqlash)
+	AWSRegion    string
+	S3Bucket     string
+	AWSAccessKey string
+	AWSSecretKey string
 }
 
 // Load reads configuration from the environment. A local .env file is loaded if present.
@@ -36,6 +42,11 @@ func Load() *Config {
 		RefreshTTL:     getDuration("REFRESH_TTL", 168*time.Hour),
 		FrontendOrigin: getEnv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		CookieDomain:   getEnv("COOKIE_DOMAIN", ""),
+
+		AWSRegion:    getEnv("AWS_REGION", ""),
+		S3Bucket:     getEnv("AWS_S3_BUCKET", ""),
+		AWSAccessKey: getEnv("AWS_ACCESS_KEY_ID", ""),
+		AWSSecretKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
 	}
 
 	if cfg.AccessSecret == "" || cfg.RefreshSecret == "" {

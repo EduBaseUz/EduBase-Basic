@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PageHeader } from "@/components/shared/page-header";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { useToast } from "@/components/ui/toast";
 import { useUserDetail, useResetPassword } from "@/hooks/use-users";
 import { formatPhoneDisplay, formatUZS, formatDate } from "@/lib/utils";
@@ -45,6 +45,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 export function UserDetailView({ role, id }: { role: ManagedRole; id: string }) {
   const meta = roleMeta[role];
+  const roleTitle = meta.singular.charAt(0).toUpperCase() + meta.singular.slice(1);
   const { data, isLoading } = useUserDetail(id);
   const resetPw = useResetPassword();
   const { toast } = useToast();
@@ -72,28 +73,49 @@ export function UserDetailView({ role, id }: { role: ManagedRole; id: string }) 
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader
-        title={u.fullName}
-        action={
-          <div className="flex gap-2">
-            <Link
-              href={meta.basePath}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              <ArrowLeft className="h-4 w-4" /> Orqaga
-            </Link>
-            <Link
-              href={`${meta.basePath}/${id}/edit`}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              <Pencil className="h-4 w-4" /> Tahrirlash
-            </Link>
-            <Button size="sm" onClick={() => setConfirmReset(true)}>
-              <KeyRound className="h-4 w-4" /> Parolni tiklash
-            </Button>
+      {/* Yuqori panel: orqaga + amallar */}
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <Link
+          href={meta.basePath}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          <ArrowLeft className="h-4 w-4" /> Orqaga
+        </Link>
+        <div className="flex gap-2">
+          <Link
+            href={`${meta.basePath}/${id}/edit`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Pencil className="h-4 w-4" /> Tahrirlash
+          </Link>
+          <Button size="sm" onClick={() => setConfirmReset(true)}>
+            <KeyRound className="h-4 w-4" /> Parolni tiklash
+          </Button>
+        </div>
+      </div>
+
+      {/* Profil sarlavhasi: avatar + ism + rol */}
+      <Card className="mb-6">
+        <CardContent className="flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:text-left">
+          <UserAvatar user={u} size={80} />
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-tight">
+              {u.fullName}
+            </h1>
+            <p className="text-sm text-muted-foreground">{roleTitle}</p>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 sm:justify-start">
+              {u.status === "active" ? (
+                <Badge variant="success">Faol</Badge>
+              ) : (
+                <Badge variant="outline">Nofaol</Badge>
+              )}
+              <span className="text-sm text-muted-foreground">
+                {formatPhoneDisplay(u.phone)}
+              </span>
+            </div>
           </div>
-        }
-      />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -101,7 +123,16 @@ export function UserDetailView({ role, id }: { role: ManagedRole; id: string }) 
             <CardTitle>Shaxsiy ma'lumotlar</CardTitle>
           </CardHeader>
           <CardContent>
-            <InfoRow label="F.I.O." value={u.fullName} />
+            <InfoRow
+              label="Jinsi"
+              value={
+                u.gender === "male"
+                  ? "Erkak"
+                  : u.gender === "female"
+                    ? "Ayol"
+                    : "—"
+              }
+            />
             <InfoRow label="Telefon" value={formatPhoneDisplay(u.phone)} />
             <InfoRow label="Manzil" value={u.address || "—"} />
             <InfoRow
@@ -128,10 +159,32 @@ export function UserDetailView({ role, id }: { role: ManagedRole; id: string }) 
               />
             )}
             {role === "student" && (
-              <InfoRow
-                label="Ota-ona"
-                value={data.parent ? data.parent.fullName : "Biriktirilmagan"}
-              />
+              <>
+                <InfoRow
+                  label="Tug'ilgan sana"
+                  value={u.birthDate ? formatDate(u.birthDate) : "—"}
+                />
+                <InfoRow
+                  label="Hujjat"
+                  value={
+                    u.documentNumber || u.documentSeries
+                      ? `${
+                          u.documentType === "passport"
+                            ? "Passport"
+                            : u.documentType === "birth_certificate"
+                              ? "Tug'ilganlik guvohnomasi"
+                              : "Hujjat"
+                        }: ${[u.documentSeries, u.documentNumber]
+                          .filter(Boolean)
+                          .join(" ")}`
+                      : "—"
+                  }
+                />
+                <InfoRow
+                  label="Ota-ona"
+                  value={data.parent ? data.parent.fullName : "Biriktirilmagan"}
+                />
+              </>
             )}
           </CardContent>
         </Card>

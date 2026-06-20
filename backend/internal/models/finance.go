@@ -17,6 +17,7 @@ const (
 
 // Transaction is a single recorded money movement.
 type Transaction struct {
+	ID      primitive.ObjectID `bson:"id" json:"id"`
 	Date    time.Time          `bson:"date" json:"date"`
 	Amount  int64              `bson:"amount" json:"amount"`
 	Comment string             `bson:"comment,omitempty" json:"comment,omitempty"`
@@ -41,12 +42,35 @@ type TuitionLedger struct {
 type Payout struct {
 	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	MentorID     primitive.ObjectID `bson:"mentorId" json:"mentorId"`
-	Period       string             `bson:"period" json:"period"` // "YYYY-MM"
+	CourseID     primitive.ObjectID `bson:"courseId,omitempty" json:"courseId,omitempty"`
+	Period       string             `bson:"period" json:"period"` // period start "YYYY-MM-DD"
 	EarnedAmount int64              `bson:"earnedAmount" json:"earnedAmount"`
 	Transactions []Transaction      `bson:"transactions" json:"transactions"`
 	Status       PayStatus          `bson:"status" json:"status"`
 	CreatedAt    time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt    time.Time          `bson:"updatedAt" json:"updatedAt"`
+}
+
+// OrgTxnKind distinguishes organizational income from expense.
+type OrgTxnKind string
+
+const (
+	OrgIncome  OrgTxnKind = "income"  // kirim (loyiha, qo'shimcha...)
+	OrgExpense OrgTxnKind = "expense" // chiqim (elektr, gaz, wifi...)
+)
+
+// OrgTransaction is an organizational income/expense unrelated to a specific
+// student or mentor (Qo'shimcha to'lovlar).
+type OrgTransaction struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Kind      OrgTxnKind         `bson:"kind" json:"kind"`
+	Category  string             `bson:"category,omitempty" json:"category,omitempty"` // elektr, wifi, loyiha...
+	Amount    int64              `bson:"amount" json:"amount"`
+	Comment   string             `bson:"comment,omitempty" json:"comment,omitempty"`
+	Date      time.Time          `bson:"date" json:"date"`
+	By        primitive.ObjectID `bson:"by" json:"by"`
+	CreatedAt time.Time          `bson:"createdAt" json:"createdAt"`
+	UpdatedAt time.Time          `bson:"updatedAt" json:"updatedAt"`
 }
 
 // SumTransactions totals a slice of transactions.

@@ -11,6 +11,7 @@ import (
 	"edubase/backend/internal/middleware"
 	"edubase/backend/internal/repositories"
 	"edubase/backend/internal/services"
+	"edubase/backend/internal/storage"
 	"edubase/backend/pkg/jwt"
 	"edubase/backend/pkg/response"
 	"github.com/go-chi/chi/v5"
@@ -23,14 +24,16 @@ type Handlers struct {
 	svc      *services.Services
 	jwt      *jwt.Manager
 	cfg      *config.Config
+	storage  *storage.S3Storage
 	validate *validator.Validate
 }
 
-func New(svc *services.Services, jwtMgr *jwt.Manager, cfg *config.Config) *Handlers {
+func New(svc *services.Services, jwtMgr *jwt.Manager, cfg *config.Config, store *storage.S3Storage) *Handlers {
 	return &Handlers{
 		svc:      svc,
 		jwt:      jwtMgr,
 		cfg:      cfg,
+		storage:  store,
 		validate: validator.New(),
 	}
 }

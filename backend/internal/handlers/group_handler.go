@@ -230,6 +230,70 @@ func (h *Handlers) RemoveGroupStudent(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, map[string]any{"ok": true})
 }
 
+type moveStudentRequest struct {
+	ToGroupID string `json:"toGroupId" validate:"required"`
+}
+
+// MoveGroupStudent (admin) moves a student from this group to another.
+func (h *Handlers) MoveGroupStudent(w http.ResponseWriter, r *http.Request) {
+	id, err := idParam(r, "id")
+	if err != nil {
+		response.BadRequest(w, "Yaroqsiz identifikator")
+		return
+	}
+	sid, err := idParam(r, "sid")
+	if err != nil {
+		response.BadRequest(w, "Yaroqsiz o'quvchi identifikatori")
+		return
+	}
+	var req moveStudentRequest
+	if !h.decode(w, r, &req) {
+		return
+	}
+	if err := h.svc.Group.MoveStudent(r.Context(), id, sid, req.ToGroupID); err != nil {
+		fail(w, err)
+		return
+	}
+	response.OK(w, map[string]any{"ok": true})
+}
+
+type promoteRequest struct {
+	Items []promoteItem `json:"items" validate:"required,min=1,dive"`
+}
+
+type promoteItem struct {
+	StudentID     string `json:"studentId" validate:"required"`
+	Outcome       string `json:"outcome" validate:"required,oneof=passed repeat"`
+	TargetGroupID string `json:"targetGroupId" validate:"required"`
+}
+
+// PromoteGroupStudents (admin) applies exam results: moves the listed students
+// from this group to their target groups, recording pass/fail as history.
+func (h *Handlers) PromoteGroupStudents(w http.ResponseWriter, r *http.Request) {
+	id, err := idParam(r, "id")
+	if err != nil {
+		response.BadRequest(w, "Yaroqsiz identifikator")
+		return
+	}
+	var req promoteRequest
+	if !h.decode(w, r, &req) {
+		return
+	}
+	items := make([]services.PromotionItem, 0, len(req.Items))
+	for _, it := range req.Items {
+		items = append(items, services.PromotionItem{
+			StudentID:     it.StudentID,
+			Outcome:       it.Outcome,
+			TargetGroupID: it.TargetGroupID,
+		})
+	}
+	if err := h.svc.Group.PromoteStudents(r.Context(), id, items); err != nil {
+		fail(w, err)
+		return
+	}
+	response.OK(w, map[string]any{"ok": true})
+}
+
 // GroupRating returns the per-group student rating (access-scoped).
 func (h *Handlers) GroupRating(w http.ResponseWriter, r *http.Request) {
 	id, err := idParam(r, "id")

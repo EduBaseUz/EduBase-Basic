@@ -22,6 +22,8 @@ const (
 	colGrades      = "grades"
 	colTuition     = "tuition_ledgers"
 	colPayouts     = "payouts"
+	colDefaultAvatars = "default_avatars"
+	colOrgTransactions = "org_transactions"
 )
 
 // Connect opens a MongoDB client and verifies connectivity.
@@ -50,8 +52,10 @@ func NewRepositories(db *mongo.Database) *repositories.Repositories {
 		Homeworks:   NewHomeworkRepo(db),
 		Attendances: NewAttendanceRepo(db),
 		Grades:      NewGradeRepo(db),
-		Tuition:     NewTuitionRepo(db),
-		Payouts:     NewPayoutRepo(db),
+		Tuition:        NewTuitionRepo(db),
+		Payouts:        NewPayoutRepo(db),
+		DefaultAvatars:  NewDefaultAvatarRepo(db),
+		OrgTransactions: NewOrgTransactionRepo(db),
 	}
 }
 

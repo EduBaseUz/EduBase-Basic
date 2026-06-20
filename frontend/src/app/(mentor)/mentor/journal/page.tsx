@@ -4,7 +4,15 @@ import * as React from "react";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarRange,
+  ClipboardList,
+  Pencil,
+  Plus,
+  Trash2,
+  Users as UsersIcon,
+} from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   Card,
@@ -48,7 +56,9 @@ import {
 import { formatDate, cn } from "@/lib/utils";
 import { sumToLetter, letterColor } from "@/lib/grades";
 import { ApiError } from "@/lib/api";
-import type { AttendanceStatus } from "@/types";
+import type { AttendanceStatus, PriceEntry } from "@/types";
+
+const dateOnly = (s: string) => s.slice(0, 10);
 
 const ATT_OPTIONS: { value: AttendanceStatus; label: string }[] = [
   { value: "present", label: "Keldi" },
@@ -56,13 +66,6 @@ const ATT_OPTIONS: { value: AttendanceStatus; label: string }[] = [
   { value: "excused", label: "Sababli" },
   { value: "absent", label: "Kelmadi" },
 ];
-
-const ATT_LABELS: Record<AttendanceStatus, string> = {
-  present: "Keldi",
-  late: "Kech qoldi",
-  excused: "Sababli",
-  absent: "Kelmadi",
-};
 
 function attSelectColor(status: AttendanceStatus): string {
   switch (status) {
@@ -79,15 +82,15 @@ function attSelectColor(status: AttendanceStatus): string {
 
 function JournalInner() {
   const params = useSearchParams();
-  const { data: groups } = useGroups();
   const [groupId, setGroupId] = React.useState<string>("");
+  const [period, setPeriod] = React.useState<PriceEntry | null>(null);
   const [lessonId, setLessonId] = React.useState<string | null>(null);
 
+  // Guruh sahifasidan ?group= bilan kelinsa, o'sha guruhni oldindan tanlaymiz.
   React.useEffect(() => {
     const q = params.get("group");
     if (q) setGroupId(q);
-    else if (!groupId && groups?.items.length) setGroupId(groups.items[0].id);
-  }, [params, groups, groupId]);
+  }, [params]);
 
   return (
     <div>
@@ -97,31 +100,25 @@ function JournalInner() {
             <ClipboardList className="h-6 w-6" /> Jurnal
           </span>
         }
-        description="Darslar, davomat va baholar"
+        description="Guruhni, so'ng oyni tanlab darslarni kiriting"
       />
 
-      <div className="mb-6 max-w-xs">
-        <Label>Guruh</Label>
-        <Select
-          value={groupId}
-          onChange={(e) => {
-            setGroupId(e.target.value);
-            setLessonId(null);
-          }}
-        >
-          <option value="">— Tanlang —</option>
-          {groups?.items.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      {groupId && !lessonId && (
-        <LessonList groupId={groupId} onOpen={setLessonId} />
-      )}
-      {groupId && lessonId && (
+      {!groupId ? (
+        <GroupsStep onPick={setGroupId} />
+      ) : !period ? (
+        <MonthsStep
+          groupId={groupId}
+          onBack={() => setGroupId("")}
+          onPick={setPeriod}
+        />
+      ) : !lessonId ? (
+        <LessonsStep
+          groupId={groupId}
+          period={period}
+          onBack={() => setPeriod(null)}
+          onOpen={setLessonId}
+        />
+      ) : (
         <LessonRosterEditor
           groupId={groupId}
           lessonId={lessonId}
@@ -132,20 +129,132 @@ function JournalInner() {
   );
 }
 
+/* ----------------------------- 1) Guruhlar ----------------------------- */
+
+function GroupsStep({ onPick }: { onPick: (id: string) => void }) {
+  const { data, isLoading } = useGroups();
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>;
+  }
+  if (!data?.items.length) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Sizga biriktirilgan guruh yo&apos;q.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {data.items.map((g) => (
+        <button
+          key={g.id}
+          type="button"
+          onClick={() => onPick(g.id)}
+          className="flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <UsersIcon className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate font-medium">{g.name}</span>
+            <span className="text-xs text-muted-foreground">
+              {g.status === "active" ? "Faol" : g.status}
+            </span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------ 2) Oylar ------------------------------- */
+
+function MonthsStep({
+  groupId,
+  onBack,
+  onPick,
+}: {
+  groupId: string;
+  onBack: () => void;
+  onPick: (p: PriceEntry) => void;
+}) {
+  const { data, isLoading } = useGroup(groupId);
+  const periods = React.useMemo(
+    () =>
+      [...(data?.course?.priceEntries ?? [])].sort((a, b) =>
+        dateOnly(a.startDate).localeCompare(dateOnly(b.startDate)),
+      ),
+    [data],
+  );
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center gap-2">
+        <Button variant="ghost" size="icon" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <h2 className="text-lg font-semibold">{data?.group.name ?? "Guruh"}</h2>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+      ) : !periods.length ? (
+        <p className="text-sm text-muted-foreground">
+          Bu mutaxassislik uchun oylik narxlar (oylar) kiritilmagan. Avval admin
+          sozlamalardan kiritishi kerak.
+        </p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {periods.map((p, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onPick(p)}
+              className="flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CalendarRange className="h-5 w-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-medium">
+                  {formatDate(p.startDate)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(p.endDate)} gacha
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------ 3) Darslar ----------------------------- */
+
 interface LessonFormValues {
   date: string;
   topic: string;
+  kind: "main" | "extra";
   homeworkTitle: string;
   homeworkDescription: string;
 }
 
-function LessonList({
+function LessonsStep({
   groupId,
+  period,
+  onBack,
   onOpen,
 }: {
   groupId: string;
+  period: PriceEntry;
+  onBack: () => void;
   onOpen: (id: string) => void;
 }) {
+  const { data: group } = useGroup(groupId);
   const { data, isLoading } = useLessons(groupId);
   const createLesson = useCreateLesson();
   const deleteLesson = useDeleteLesson();
@@ -154,17 +263,32 @@ function LessonList({
   const [toDelete, setToDelete] = React.useState<string | null>(null);
   const [editId, setEditId] = React.useState<string | null>(null);
 
+  const lessonsPerMonth = group?.course?.lessonsPerMonth ?? 0;
+  const start = dateOnly(period.startDate);
+  const end = dateOnly(period.endDate);
+
+  const inPeriod = (data?.items ?? [])
+    .filter((l) => dateOnly(l.date) >= start && dateOnly(l.date) <= end)
+    .sort((a, b) => dateOnly(a.date).localeCompare(dateOnly(b.date)));
+  const mainCount = inPeriod.filter((l) => l.kind !== "extra").length;
+  const mainFull = lessonsPerMonth > 0 && mainCount >= lessonsPerMonth;
+
   const {
     register,
     handleSubmit,
+    watch,
     reset,
     formState: { errors },
   } = useForm<LessonFormValues>();
+  const kind = watch("kind");
 
   const openCreate = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const within = today >= start && today <= end;
     reset({
-      date: new Date().toISOString().slice(0, 10),
+      date: within ? today : start,
       topic: "",
+      kind: mainFull ? "extra" : "main",
       homeworkTitle: "",
       homeworkDescription: "",
     });
@@ -172,12 +296,28 @@ function LessonList({
   };
 
   const onSubmit = handleSubmit(async (v) => {
+    if (dateOnly(v.date) < start || dateOnly(v.date) > end) {
+      toast({
+        title: "Sana shu oy oralig'ida bo'lishi kerak",
+        variant: "error",
+      });
+      return;
+    }
+    if (v.kind === "main" && mainFull) {
+      toast({
+        title: `Asosiy darslar to'ldi (${lessonsPerMonth} ta)`,
+        description: "Qo'shimcha dars sifatida qo'shing",
+        variant: "error",
+      });
+      return;
+    }
     try {
       await createLesson.mutateAsync({
         groupId,
         body: {
           date: v.date,
           topic: v.topic,
+          kind: v.kind,
           homeworkTitle: v.homeworkTitle,
           homeworkDescription: v.homeworkDescription,
         },
@@ -210,17 +350,35 @@ function LessonList({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Darslar</CardTitle>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Yangi dars
-        </Button>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <CardTitle>Darslar</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              {formatDate(period.startDate)} — {formatDate(period.endDate)}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge variant={mainFull ? "destructive" : "secondary"}>
+            Asosiy: {mainCount}
+            {lessonsPerMonth > 0 ? `/${lessonsPerMonth}` : ""}
+          </Badge>
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Yangi dars
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
-        ) : !data?.items.length ? (
-          <p className="text-sm text-muted-foreground">Hozircha dars yo'q.</p>
+        ) : !inPeriod.length ? (
+          <p className="text-sm text-muted-foreground">
+            Bu oy uchun hali dars yo&apos;q.
+          </p>
         ) : (
           <Table>
             <TableHeader>
@@ -228,17 +386,23 @@ function LessonList({
                 <TableHead>T/R</TableHead>
                 <TableHead>Sana</TableHead>
                 <TableHead>Mavzu</TableHead>
-                <TableHead>Oy</TableHead>
+                <TableHead>Tur</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.items.map((l, i) => (
+              {inPeriod.map((l, i) => (
                 <TableRow key={l.id}>
                   <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell>{formatDate(l.date)}</TableCell>
                   <TableCell>{l.topic}</TableCell>
-                  <TableCell>{l.monthIndex}-oy</TableCell>
+                  <TableCell>
+                    {l.kind === "extra" ? (
+                      <Badge variant="outline">Qo&apos;shimcha</Badge>
+                    ) : (
+                      <Badge variant="secondary">Asosiy</Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="flex justify-end gap-1">
                     <Button size="sm" variant="outline" onClick={() => onOpen(l.id)}>
                       Ochish
@@ -279,12 +443,15 @@ function LessonList({
               </Label>
               <Input
                 type="date"
+                min={start}
+                max={end}
                 aria-invalid={!!errors.date}
                 {...register("date", { required: true })}
               />
-              {errors.date && (
-                <p className="text-xs text-destructive">Sanani tanlang</p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                {formatDate(period.startDate)} — {formatDate(period.endDate)}{" "}
+                oralig&apos;ida
+              </p>
             </div>
             <div className="space-y-2">
               <Label>
@@ -313,6 +480,20 @@ function LessonList({
                 {...register("homeworkDescription")}
               />
             </div>
+            <div className="space-y-2">
+              <Label>Dars turi</Label>
+              <Select {...register("kind")}>
+                <option value="main" disabled={mainFull}>
+                  Asosiy dars{mainFull ? " (limit to'ldi)" : ""}
+                </option>
+                <option value="extra">Qo&apos;shimcha dars</option>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {kind === "extra"
+                  ? "Qo'shimcha dars oylik songa kirmaydi (cheksiz)."
+                  : "Asosiy dars oylik darslar soniga kiradi."}
+              </p>
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Bekor qilish
@@ -337,7 +518,12 @@ function LessonList({
       />
 
       {editId && (
-        <EditLessonDialog lessonId={editId} onClose={() => setEditId(null)} />
+        <EditLessonDialog
+          lessonId={editId}
+          min={start}
+          max={end}
+          onClose={() => setEditId(null)}
+        />
       )}
     </Card>
   );
@@ -345,9 +531,13 @@ function LessonList({
 
 function EditLessonDialog({
   lessonId,
+  min,
+  max,
   onClose,
 }: {
   lessonId: string;
+  min: string;
+  max: string;
   onClose: () => void;
 }) {
   const { data, isLoading } = useLessonRoster(lessonId);
@@ -365,6 +555,7 @@ function EditLessonDialog({
       reset({
         date: data.lesson.date.slice(0, 10),
         topic: data.lesson.topic,
+        kind: data.lesson.kind === "extra" ? "extra" : "main",
         homeworkTitle: data.homework?.title ?? "",
         homeworkDescription: data.homework?.description ?? "",
       });
@@ -378,6 +569,7 @@ function EditLessonDialog({
         body: {
           date: v.date,
           topic: v.topic,
+          kind: v.kind,
           homeworkTitle: v.homeworkTitle,
           homeworkDescription: v.homeworkDescription,
         },
@@ -409,12 +601,11 @@ function EditLessonDialog({
               </Label>
               <Input
                 type="date"
+                min={min}
+                max={max}
                 aria-invalid={!!errors.date}
                 {...register("date", { required: true })}
               />
-              {errors.date && (
-                <p className="text-xs text-destructive">Sanani tanlang</p>
-              )}
             </div>
             <div className="space-y-2">
               <Label>
@@ -443,6 +634,13 @@ function EditLessonDialog({
                 {...register("homeworkDescription")}
               />
             </div>
+            <div className="space-y-2">
+              <Label>Dars turi</Label>
+              <Select {...register("kind")}>
+                <option value="main">Asosiy dars</option>
+                <option value="extra">Qo&apos;shimcha dars</option>
+              </Select>
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
                 Bekor qilish
@@ -457,6 +655,8 @@ function EditLessonDialog({
     </Dialog>
   );
 }
+
+/* ------------------------- 4) Davomat va baholar ----------------------- */
 
 interface RowState {
   status: AttendanceStatus;
@@ -513,7 +713,6 @@ function LessonRosterEditor({
 
   const billable = (s: AttendanceStatus) => s === "present" || s === "late";
 
-  // Bo'sh qoldirish mumkin; aks holda faqat 1-10 oralig'idagi son qabul qilinadi.
   const clampScore = (value: string): string => {
     const digits = value.replace(/\D/g, "");
     if (digits === "") return "";
@@ -524,7 +723,6 @@ function LessonRosterEditor({
     return String(n);
   };
 
-  // Davomat statistikasi.
   const counts = React.useMemo(() => {
     const c = { present: 0, late: 0, excused: 0, absent: 0 };
     for (const s of students) {
@@ -546,7 +744,6 @@ function LessonRosterEditor({
       for (const s of students) {
         const r = rows[s.id];
         if (!r || !billable(r.status)) continue;
-        // Bo'sh maydon => score 0 (backend mavjud bahoni o'chiradi).
         const hw = r.homework === "" ? 0 : Number(r.homework);
         const part = r.participation === "" ? 0 : Number(r.participation);
         gradeItems.push({ studentId: s.id, type: "homework", score: hw });
