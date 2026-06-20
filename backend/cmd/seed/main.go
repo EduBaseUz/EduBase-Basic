@@ -56,7 +56,7 @@ func main() {
 	adminPhone := "998901112233"
 	admin := &models.User{
 		Role:               models.RoleAdmin,
-		FullName:           "Bosh Administrator",
+		FullName:           "Administrator",
 		Phone:              adminPhone,
 		PasswordHash:       mkPass(adminPhone),
 		MustChangePassword: true,
